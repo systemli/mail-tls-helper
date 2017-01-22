@@ -41,6 +41,7 @@ request* on Github.
 		/usr/local/bin/check-notls-mailservers.sh
 	endscript
 }
+```
 
 ## Changelog
 
