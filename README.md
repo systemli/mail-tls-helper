@@ -30,8 +30,8 @@ request* on Github.
 * In order for the script to run automatically against the log file without
   producing duplicates, the easiest solution is to run it once after the log
   is rotated by ```logrotate```. This can be done by configuring a
-  ```post-script``` in the corresponding *logrotate configure include* (e.g.
-  ```/etc/logrotate.d/rsyslog```:
+  ```post-script``` in the corresponding *logrotate configure include*
+  (e.g. ```/etc/logrotate.d/rsyslog```):
   ```
 /var/log/mail.log
 {
