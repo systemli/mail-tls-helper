@@ -68,9 +68,9 @@ out_mids_cnt="$(echo $out_mids | wc -w)"
 for id in $out_mids; do
 	if ! echo $tls_mids | grep -q $id; then
 		# determine rcpt domain of no-TLS mail
-		maildomain="$(sed -ne "s/^.*postfix\/smtp\[$id\]: .*to=<[^@]\+@\([^, ]\+\)>, .*status=sent.*$/\1/gp" $maillog | head -n1)"
+		maildomain="$(sed -ne "s/^.*postfix\/smtp\[$id\]: .*to=<[^@]\+@\([^, ]\+\)>, .*status=sent.*$/\1/gp" $maillog | head -n1 | tr '[:upper:]' '[:lower:])"
 		# determine receiving mailserver of no-TLS mail
-		relay="$(sed -ne "s/^.*postfix\/smtp\[$id\]: .*relay=\([^, ]\+\), .*status=sent.*$/\1/gp" $maillog | head -n1)"
+		relay="$(sed -ne "s/^.*postfix\/smtp\[$id\]: .*relay=\([^, ]\+\), .*status=sent.*$/\1/gp" $maillog | head -n1 | tr '[:upper:]' '[:lower:])"
 		# output all logs related to no-TLS mail for debugging purposes
 		#grep "postfix\/smtp\[$id\]: " $maillog >>/tmp/check-notls-mailservers.log
 		# detect TLS errors, don't send alert mails in this case
