@@ -5,16 +5,16 @@
 #  * alert postmasters of mailservers that don't support STARTTLS
 #
 # Author: doobry@systemli.org
-# Version: 0.6 [2017-02-19]
+# Version: 0.7 [2017-02-19]
 # License: GPL-3
 #
 # TODO:
-# * add domains to sqlite DB if we want to track domains for each relay
-# * add relay and domain counters for no-TLS connections
 # * split things out into submodules: mail sending, postfix
 #   * maybe not? complicates installation of the script
 # * implement blacklist of domains/relays not to notify when no-tls (?)
-# * make more things configurable:
+# * writer log parser and hash map creator for exim4
+# * restructure code into clases: options, sqlite, postfix, (exim4), sendmail
+# * make more things configurable via commandline:
 #   * interval between mails to postmasters
 
 from __future__ import print_function
