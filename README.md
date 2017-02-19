@@ -3,7 +3,7 @@
 Postfix helper script that does the following:
 
  * make TLS mandatory for outgoing mail wherever possible and
- * alert postmasters of mailservers that don't support STARTTLS
+ * alert postmasters of domains that don't support STARTTLS
 
 In case of bugs, ideas, enhancements, feel free to open an *issue* or *pull
 request* on Github.
