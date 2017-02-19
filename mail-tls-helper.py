@@ -239,7 +239,7 @@ def sendMail(to, subject, text, server="/usr/sbin/sendmail"):
         print("Mail: %s" % msg.as_string())
     else:
         if server == "/usr/sbin/sendmail":
-            Popen([server, "-t", "-oi"], stdin=PIPE)
+            p = Popen([server, "-t", "-oi"], stdin=PIPE)
             p.communicate(msg.as_string())
         else:
             smtp = smtplib.SMTP(server)
