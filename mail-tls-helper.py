@@ -56,9 +56,9 @@ def options(args):
     op['printVersion'] = False
 
     try:
-        opts, args = getopt.getopt(args, 'Acd:Df:hl:m:OPr:s:SV',
+        opts, args = getopt.getopt(args, 'Acd:Df:hl:Op:Pr:s:SV',
             ['no-alerts', 'cat-mails', 'domain=', 'debug', 'from=', 'help',
-             'postfix-log=', 'postfix-map-file=', 'no-postmap',
+             'postfix-log=', 'no-postmap', 'postfix-map-file=',
              'no-postfix-map', 'rcpts=', 'sqlite-db=', 'no-summary',
              'version'])
     except getopt.error as exc:
@@ -78,7 +78,7 @@ def options(args):
             op['postfixLog'] = arg
         elif opt in ['-P', '--no-postfix-map']:
             op['postfixMap'] = False
-        elif opt in ['-m', '--postfix-map-file']:
+        elif opt in ['-p', '--postfix-map-file']:
             op['postfixMapFile'] = arg
         elif opt in ['-O', '--no-postmap']:
             op['postMap'] = False
@@ -112,15 +112,12 @@ def options(args):
     op['rcpts']      = op.get('rcpts', [ "admin@%s" % op['domain'] ])
     op['summSubj']  = op.get('sumSubj', "[%s] no-TLS outgoing mail" % (os.uname()[1]))
     op['summBody']  = op.get('sumSubj', "Summary mail for no-TLS outgoing mail on %s" % (os.uname()[1]))
-    op['alertSubj'] = op.get('alertSubj', "Please add TLS support to your mail system 'XRELAYX'")
-    op['alertBody'] = op.get('alertBody', """Hello postmaster for mail system 'XRELAYX',
+    op['alertSubj'] = op.get('alertSubj', "Please add TLS support to the mailservers for 'XDOMAINX'")
+    op['alertBody'] = op.get('alertBody', """Hello postmaster for mail domain 'XDOMAINX',
 
-Your system 'XRELAYX' is among the last mail servers,
+Your mail server for 'XDOMAINX' is among the last mail servers,
 that still don't support TLS transport encryption for incoming messages.
 
-The following mail domains are affected:
-
-XMAILDOMAINSX
 
 In order to make the internet a safer place, we intend to disable
 unencrypted mail delivery in the near future.
@@ -150,7 +147,7 @@ Postfix helper script that does the following:
   -D, --debug                  enable debugging messages
   -l, --postfix-log=file       set Postfix mail log file (default: %s)
   -P, --no-postfix-map         don't update the Postfix TLS policy map file
-  -m, --postfix-map-file=file  set Postfix TLS policy map file (default: %s)
+  -p, --postfix-map-file=file  set Postfix TLS policy map file (default: %s)
   -O, --no-postmap             don't postmap(1) the Postfix TLS policy map file
   -s, --sqlite-db=file         set SQLite DB file (default: %s)
   -A, --no-alerts              don't send alert mails
@@ -173,16 +170,18 @@ def print_dbg(msg):
 # Postfix TLS policy table functions
 def postfixTlsPolicyRead():
     if os.path.isfile(op['postfixMapFile']):
-        return [line.split()[0].strip('[]') for line in open(op['postfixMapFile'])]
+        #return [line.split()[0].strip('[]') for line in open(op['postfixMapFile'])]
+        return [line.split()[0] for line in open(op['postfixMapFile'])]
     else:
         return []
 
 def postfixTlxPolicyWrite(policyFileLines):
     policyFile = open(op['postfixMapFile'], "a")
-    for relay in tlsRelays:
-        if relay not in policyFileLines:
-            print_dbg("Add relay '%s' to Postfix TLS policy map" % relay)
-            policyFile.write("[%s] encrypt\n" % relay)
+    for domain in tlsDomains:
+        if domain not in policyFileLines:
+            print_dbg("Add domain '%s' to Postfix TLS policy map" % domain)
+            #policyFile.write("[%s] encrypt\n" % domain)
+            policyFile.write("%s encrypt\n" % domain)
     policyFile.close()
 
 def postmapTlsPolicy():
@@ -190,44 +189,44 @@ def postmapTlsPolicy():
         call(["postmap", op['postfixMapFile']])
 
 def sqliteDBRead():
-    notlsRelayDict = {}
+    notlsDict = {}
     if os.path.isfile(op['sqliteDB']):
         conn = sqlite3.connect(op['sqliteDB'])
         c = conn.cursor()
-        c.execute("SELECT * FROM notlsRelays")
+        c.execute("SELECT * FROM notlsDomains")
         rows = c.fetchall()
         conn.close()
         for item in rows:
-            notlsRelayDict[item[0]] = {
+            notlsDict[item[0]] = {
                 'alertCount': item[1],
                 'alertDate': item[2],
             }
-    return notlsRelayDict
+    return notlsDict
 
-def notlsRelayProcess(notlsRelayDict):
+def notlsProcess(notlsDict):
     global op
-    op['summBody'] += "\nList of relays with no-TLS connections:"
+    op['summBody'] += "\nList of domains with no-TLS connections:"
     conn = sqlite3.connect(op['sqliteDB'])
     c = conn.cursor()
-    c.execute("CREATE TABLE IF NOT EXISTS notlsRelays (relay text, alertCount integer, alertDate date)")
-    for relay in notlsRelays:
-        op['summBody'] += "\n * %s (domains: %s)" % (relay, ', '.join(notlsDomains[relay]))
-        if relay in notlsRelayDict:
+    c.execute("CREATE TABLE IF NOT EXISTS notlsDomains (domain text, alertCount integer, alertDate date)")
+    for domain in notlsDomains:
+        op['summBody'] += "\n * %s" % (domain)
+        if domain in notlsDict:
             # send alerts every 30 days
-            slist = notlsRelayDict[relay]['alertDate'].split('-')
+            slist = notlsDict[domain]['alertDate'].split('-')
             if not datetime.date(int(slist[0]),int(slist[1]),int(slist[2])) < datetime.date.today()+datetime.timedelta(-30):
                 continue
             else:
-                print_dbg("Update relay %s in sqlite DB" % relay)
-                c.execute("UPDATE notlsRelays SET alertCount=?, alertDate=? WHERE relay=?", (notlsRelayDict[relay]['alertCount']+1, datetime.date.today(), relay)) 
+                print_dbg("Update domain %s in sqlite DB" % domain)
+                c.execute("UPDATE notlsDomains SET alertCount=?, alertDate=? WHERE domain=?", (notlsDict[domain]['alertCount']+1, datetime.date.today(), domain))
         else:
-            print_dbg("Insert relay %s into sqlite DB" % relay)
-            c.execute("INSERT INTO notlsRelays (relay, alertCount, alertDate) VALUES (?,?,?)", (relay, 1, datetime.date.today())) 
+            print_dbg("Insert domain %s into sqlite DB" % domain)
+            c.execute("INSERT INTO notlsDomains (domain, alertCount, alertDate) VALUES (?,?,?)", (domain, 1, datetime.date.today()))
         if op['alerts']:
             op['summBody'] += " [sent alert mail]"
-            sendMail(['postmaster@'+d for d in notlsDomains[relay]],
-                     op['alertSubj'].replace('XRELAYX', relay),
-                     op['alertBody'].replace('XRELAYX', relay).replace('XMAILDOMAINSX', '\n'.join(notlsDomains[relay])))
+            sendMail(['postmaster@'+domain],
+                     op['alertSubj'].replace('XDOMAINX', domain),
+                     op['alertBody'].replace('XDOMAINX', domain))
     op['summBody'] += "\n\n"
     c.execute
     conn.commit()
@@ -256,8 +255,9 @@ def sendMail(to, subject, text, server="/usr/sbin/sendmail"):
 # Variable declarations
 op = {}
 tlsRelays = set()
+tlsDomains = set()
 notlsRelays = set()
-notlsDomains = {}
+notlsDomains = set()
 lineCount = conCount = msgCount = sentCount = tlsCount = 0
 
 # Regexes
@@ -303,7 +303,8 @@ Delivered messages: %s
 TLS connections: %s
 """ % (lineCount, conCount, msgCount, sentCount, tlsCount)
 
-    # Process pidDict, read relays into tlsRelays/notlsRelays
+    # Process pidDict, read relays into tlsRelays/notlsRelays and domains into
+    # tlsDomains/notlsDomains
     # * Beware:
     #   * Postfix sends several mails - even to different relays - under one
     #     PID, each one with a separate msgID.
@@ -316,21 +317,24 @@ TLS connections: %s
                 pidDict[pid][relay]['sentCount'] >= 1):
                 # All connections encrypted, at least one msg delivered -> good
                 tlsRelays.add(relay)
+                for domain in pidDict[pid][relay]['domains']:
+                    tlsDomains.add(domain)
             elif pidDict[pid][relay]['sentCount'] == 0:
                 # No message was delivered, ignore for now
                 continue
             else:
                 # At least some connections were unencrypted
                 notlsRelays.add(relay)
-                notlsDomains[relay] = pidDict[pid][relay]['domains']
+                for domain in pidDict[pid][relay]['domains']:
+                    notlsDomains.add(domain)
 
-    if (len(tlsRelays) > 0 and op['postfixMap']):
+    if (len(tlsDomains) > 0 and op['postfixMap']):
         policyFileLines = postfixTlsPolicyRead()
         postfixTlxPolicyWrite(policyFileLines)
-        postmapTlsPolicy() 
+        postmapTlsPolicy()
 
-    if len(notlsRelays) > 0:
-        notlsRelaysDict = sqliteDBRead()
-        notlsRelayProcess(notlsRelaysDict)
+    if len(notlsDomains) > 0:
+        notlsDict = sqliteDBRead()
+        notlsProcess(notlsDict)
         if op['summary']:
             sendMail(op['rcpts'],op['summSubj'],op['summBody'])
