@@ -13,17 +13,17 @@ request* on Github.
  * Set *Postfix SMTP client logging* (configuration option
    [smtp_tls_loglevel](http://www.postfix.org/postconf.5.html#smtp_tls_loglevel))
    to '1' or higher.
- * Ensure that Python (2.7) is installed
- * Copy the script to your mail system (e.g. to ```/usr/local/bin/```)
+ * Ensure that Python (2.7) is installed.
+ * Copy the script to your mail system (e.g. to ```/usr/local/bin/```) and make
+   executable.
 
 # *Postfix TLS policy map* Configuration
 
 # Running the script
 
- * Run ```mail-tls-helper.py -h``` and figure out the correct commandline options
- * In order for the script to run automatically against the log file without
-   producing duplicates, the easiest solution is to run it once after the log
-   is rotated by ```logrotate```. This can be done by configuring a
+ * Run ```mail-tls-helper.py -h``` and learn about the commandline options.
+ * Optionally configure logrotate to run the script automatically against the
+   mail log file just after rotation. This can be done by configuring a
    ```post-script``` in the corresponding *logrotate configure include*
    (e.g. ```/etc/logrotate.d/rsyslog```):
    ```
@@ -40,6 +40,7 @@ request* on Github.
 ## Changelog
 
 * 2017-02-19: version 0.7
+  * renamed to ```mail-tls-helper```
   * complete rewrite in Python
   * fixed logfile parsing logic, much more robust now
   * added support for commandline arguments
