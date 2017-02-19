@@ -94,7 +94,7 @@ def options(args):
             op['rcpts'] = arg.split(',')
 
     # Set options to defaults if not set yet
-    op['debug']      = op.get('debug', True)
+    op['debug']      = op.get('debug', False)
     op['postfixLog'] = op.get('postfixLog', "/var/log/mail.log.1")
     op['postfixMap'] = op.get('postfixMap', True)
     op['postfixMapFile'] = op.get('postfixMapFile', "/etc/postfix/tls_policy")
@@ -235,7 +235,7 @@ def sendMail(to, subject, text, server="localhost"):
     msg['Subject'] = subject
     msg.attach(MIMEText(text))
     if op['catMails']:
-        print_dbg("Mail: %s" % msg.as_string())
+        print("Mail: %s" % msg.as_string())
     else:
         smtp = smtplib.SMTP(server)
         server.sendmail(op['from'], to, msg.as_string())
