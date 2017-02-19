@@ -21,6 +21,11 @@ request* on Github.
 
 # *Postfix TLS policy map* Configuration
 
+ * Configure the *Postfix TLS policy map* in ```main.cf```:
+   ```
+smtp_tls_policy_maps = hash:/etc/postfix/tls_policy
+```
+
 # Running the script
 
  * Run ```mail-tls-helper.py -h``` and learn about the commandline options.

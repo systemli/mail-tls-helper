@@ -179,7 +179,7 @@ def postfixTlxPolicyWrite(policyFileLines):
             policyFile.write("%s encrypt\n" % relay)
     policyFile.close()
 
-def postfixTlsPolicyMap():
+def postmapTlsPolicy():
     call(["postmap", op['postfixMapFile']])
 
 def sqliteDBRead():
@@ -320,6 +320,7 @@ TLS connections: %s
     if (len(tlsRelays) > 0 and op['postfixMap']):
         policyFileLines = postfixTlsPolicyRead()
         postfixTlxPolicyWrite(policyFileLines)
+        postmapTlsPolicy()
 
     if len(notlsRelays) > 0:
         notlsRelaysDict = sqliteDBRead()
