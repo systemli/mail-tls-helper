@@ -238,7 +238,7 @@ def sendMail(to, subject, text, server="localhost"):
         print("Mail: %s" % msg.as_string())
     else:
         smtp = smtplib.SMTP(server)
-        server.sendmail(op['from'], to, msg.as_string())
+        smtp.sendmail(op['from'], to, msg.as_string())
         smtp.close()
 
 # Variable declarations
