@@ -24,6 +24,7 @@ import datetime, sqlite3
 import getopt, sys
 from collections import defaultdict
 from subprocess import call
+from subprocess import Popen
 import smtplib
 from email.MIMEMultipart import MIMEMultipart
 from email.MIMEText import MIMEText
@@ -226,7 +227,7 @@ def notlsRelayProcess(notlsRelayDict):
     conn.close()
 
 # Send mail
-def sendMail(to, subject, text, server="localhost"):
+def sendMail(to, subject, text, server="/usr/sbin/sendmail"):
     assert type(to)==list
     msg = MIMEMultipart()
     msg['From'] = op['from']
@@ -237,9 +238,13 @@ def sendMail(to, subject, text, server="localhost"):
     if op['catMails']:
         print("Mail: %s" % msg.as_string())
     else:
-        smtp = smtplib.SMTP(server)
-        smtp.sendmail(op['from'], to, msg.as_string())
-        smtp.close()
+        if server = "/usr/sbin/sendmail":
+            Popen([server, "-t", "-oi"], stdin=PIPE)
+            p.communicate(msg.as_string())
+        else:
+            smtp = smtplib.SMTP(server)
+            smtp.sendmail(op['from'], to, msg.as_string())
+            smtp.close()
 
 # Variable declarations
 op = {}
