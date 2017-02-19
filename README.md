@@ -1,49 +1,48 @@
-# check-notls-mailservers
+# mail-tls-helper
 
-Script to check for outgoing mail that is not transport-encrypted
+Postfix helper script that does the following:
 
-* The script parses the Postfix mail log for outgoing mail that is not
-  transport-encrypted via TLS and gives a summary with some stats.
-* Optionally the script sends alert mails to the postmasters of receiving
-  mailserver without STARTTLS support.
+ * make TLS mandatory for outgoing mail wherever possible and
+ * alert postmasters of mailservers that don't support STARTTLS
 
 In case of bugs, ideas, enhancements, feel free to open an *issue* or *pull
 request* on Github.
 
-## How to use this script
+## Prerequisites
 
-* In order to work, this script needs *Postfix SMTP client logging*
-  (configuration option [smtp_tls_loglevel](http://www.postfix.org/postconf.5.html#smtp_tls_loglevel))
-  to be set to '1' or higher.
-* Copy the script to your mail system (e.g. to ```/usr/local/bin/```)
-* Configure the script:
-  * Set ```maillog``` to your postfix logfile
-  * Set ```provider```to your service domain.
-  * Optionally set ```contact``` to your contact mail address.
-  * Optionally set ```out_rcpts``` to a list of mail addresses that should
-    receive the summary regarding outgoing no-TLS mail. Alternatively, leave
-    the option empty and the summary will be printed to *STDOUT*.
-  * Optionally set ```sent_alert``` in order to warn postmasters about missing
-    TLS support on their mail servers.
-  * Optionally customize ```alert_subject``` and ```alert_body```.
+ * Set *Postfix SMTP client logging* (configuration option
+   [smtp_tls_loglevel](http://www.postfix.org/postconf.5.html#smtp_tls_loglevel))
+   to '1' or higher.
+ * Ensure that Python (2.7) is installed
+ * Copy the script to your mail system (e.g. to ```/usr/local/bin/```)
 
-* In order for the script to run automatically against the log file without
-  producing duplicates, the easiest solution is to run it once after the log
-  is rotated by ```logrotate```. This can be done by configuring a
-  ```post-script``` in the corresponding *logrotate configure include*
-  (e.g. ```/etc/logrotate.d/rsyslog```):
-  ```
+# *Postfix TLS policy map* Configuration
+
+# Running the script
+
+ * Run ```mail-tls-helper.py -h``` and figure out the correct commandline options
+ * In order for the script to run automatically against the log file without
+   producing duplicates, the easiest solution is to run it once after the log
+   is rotated by ```logrotate```. This can be done by configuring a
+   ```post-script``` in the corresponding *logrotate configure include*
+   (e.g. ```/etc/logrotate.d/rsyslog```):
+   ```
 /var/log/mail.log
 {
 	[...]
 	postrotate
 		[...]
-		/usr/local/bin/check-notls-mailservers.sh
+		/usr/local/bin/mail-tls-helper.py -d example.org -s /var/lib/mail-tls-helper/notlsRelays.sqlite 
 	endscript
 }
 ```
 
 ## Changelog
 
-* 2017-01-22: initial version 0.5
-  * release version 0.5
+* 2017-02-19: version 0.7
+  * complete rewrite in Python
+  * fixed logfile parsing logic, much more robust now
+  * added support for commandline arguments
+  * added support to create a Postfix TLS policy map
+* 2017-01-22: version 0.5
+  * initial release
