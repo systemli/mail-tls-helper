@@ -14,6 +14,8 @@
 # * split things out into submodules: mail sending, postfix
 #   * maybe not? complicates installation of the script
 # * implement blacklist of domains/relays not to notify when no-tls (?)
+# * make more things configurable:
+#   * interval between mails to postmasters
 
 from __future__ import print_function
 import os
@@ -53,10 +55,10 @@ def options(args):
     op['printVersion'] = False
 
     try:
-        opts, args = getopt.getopt(args, 'Ad:Df:hl:m:Pr:s:SV',
-            ['no-alerts', 'domain=', 'debug', 'from=', 'help', 'print-mails',
-             'postfix-log=', 'postfix-map=', 'rcpts=', 'sqlite-db=',
-             'no-summary', 'version'])
+        opts, args = getopt.getopt(args, 'Acd:Df:hl:m:Pr:s:SV',
+            ['no-alerts', 'cat-mails', 'domain=', 'debug', 'from=', 'help',
+             'postfix-log=', 'postfix-map-file=', 'no-postfix-map', 'rcpts=',
+             'sqlite-db=', 'no-summary', 'version'])
     except getopt.error as exc:
         print("%s: %s, try -h for a list of all the options" % (name, str(exc)))
         sys.exit(255)
@@ -72,16 +74,18 @@ def options(args):
             op['debug'] = True
         elif opt in ['-l', '--postfix-log']:
             op['postfixLog'] = arg
-        elif opt in ['-m', '--postfix-map']:
-            op['postfixMap'] = arg
+        elif opt in ['-P', '--no-postfix-map']:
+            op['postfixMap'] = False
+        elif opt in ['-m', '--postfix-map-file']:
+            op['postfixMapFile'] = arg
         elif opt in ['-s', '--sqlite-db']:
             op['sqliteDB'] = arg
         elif opt in ['-A', '--no-alerts']:
             op['alerts'] = False
         elif opt in ['-S', '--no-summary']:
             op['summary'] = False
-        elif opt in ['-P', '--print-mails']:
-            op['printMails'] = True
+        elif opt in ['-c', '--cat-mails']:
+            op['catMails'] = True
         elif opt in ['-d', '--domain']:
             op['domain'] = arg
         elif opt in ['-f', '--from']:
@@ -92,11 +96,12 @@ def options(args):
     # Set options to defaults if not set yet
     op['debug']      = op.get('debug', True)
     op['postfixLog'] = op.get('postfixLog', "/var/log/mail.log.1")
-    op['postfixMap'] = op.get('postfixMap', "/etc/postfix/tls_policy")
-    op['sqliteDB']   = op.get('sqliteDB', "notls.sqlite")
+    op['postfixMap'] = op.get('postfixMap', True)
+    op['postfixMapFile'] = op.get('postfixMapFile', "/etc/postfix/tls_policy")
+    op['sqliteDB']   = op.get('sqliteDB', "/var/lib/mail-tls-helper/notls.sqlite")
     op['alerts']     = op.get('alerts', True)
     op['summary']    = op.get('summary', True)
-    op['printMails'] = op.get('printMails', False)
+    op['catMails']   = op.get('catMails', False)
     op['domain']     = op.get('domain', "example.org")
     op['from']       = op.get('from', "admin@%s" % op['domain'])
     op['rcpts']      = op.get('rcpts', [ "admin@%s" % op['domain'] ])
@@ -135,19 +140,20 @@ Postfix helper script that does the following:
  * alert postmasters of mailservers that don't support STARTTLS
 
 %s options:
-  -h, --help              display this help message
-  -V, --version           display version number
-  -D, --debug             enable debugging messages
-  -l, --postfix-log=file  set Postfix mail log file (default: %s)
-  -m, --postfix-map=file  set Postfix TLS policy map file (default: %s)
-  -s, --sqlite-db=file    set SQLite DB file (default: %s)
-  -A, --no-alerts         don't send alert mails
-  -S, --no-summary        don't send summary mail
-  -P, --print-mails       print mails instead of sending them
-  -d, --domain=name       set organization domain (default: %s)
-  -f, --from=address      set sender address (default: %s)
-  -r, --rcpts=addressses  set summary mail rcpt addresses (default: %s)
-""" % (name, op['postfixLog'], op['postfixMap'], op['sqliteDB'], op['domain'], op['from'], ','.join(op['rcpts'])), file=sys.stderr)
+  -h, --help                   display this help message
+  -V, --version                display version number
+  -D, --debug                  enable debugging messages
+  -l, --postfix-log=file       set Postfix mail log file (default: %s)
+  -P, --no-postfix-map         don't update the Postfix TLS policy map file
+  -m, --postfix-map-file=file  set Postfix TLS policy map file (default: %s)
+  -s, --sqlite-db=file         set SQLite DB file (default: %s)
+  -A, --no-alerts              don't send alert mails
+  -S, --no-summary             don't send summary mail
+  -c, --cat-mails              display mails instead of sending them
+  -d, --domain=name            set organization domain (default: %s)
+  -f, --from=address           set sender address (default: %s)
+  -r, --rcpts=addressses       set summary mail rcpt addresses (default: %s)
+""" % (name, op['postfixLog'], op['postfixMapFile'], op['sqliteDB'], op['domain'], op['from'], ','.join(op['rcpts'])), file=sys.stderr)
         sys.exit(0)
     elif op['printVersion']:
         print("%s %s" % (name, version), file=sys.stderr)
@@ -160,20 +166,20 @@ def print_dbg(msg):
 
 # Postfix TLS policy table functions
 def postfixTlsPolicyRead():
-    if os.path.isfile(op['postfixMap']):
-        return [line.split()[0] for line in open(op['postfixMap'])]
+    if os.path.isfile(op['postfixMapFile']):
+        return [line.split()[0] for line in open(op['postfixMapFile'])]
     else:
         return []
 
 def postfixTlxPolicyWrite(policyFileLines):
-    policyFile = open(op['postfixMap'], "a")
+    policyFile = open(op['postfixMapFile'], "a")
     for relay in tlsRelays:
         if relay not in policyFileLines:
             policyFile.write("%s encrypt\n" % relay)
     policyFile.close()
 
 def postfixTlsPolicyMap():
-    call(["postmap", op['postfixMap']])
+    call(["postmap", op['postfixMapFile']])
 
 def sqliteDBRead():
     notlsRelayDict = {}
@@ -228,7 +234,7 @@ def sendMail(to, subject, text, server="localhost"):
     msg['Date'] = formatdate(localtime=True)
     msg['Subject'] = subject
     msg.attach(MIMEText(text))
-    if op['printMails']:
+    if op['catMails']:
         print_dbg("Mail: %s" % msg.as_string())
     else:
         smtp = smtplib.SMTP(server)
@@ -306,7 +312,7 @@ TLS connections: %s
                 notlsRelays.add(relay)
                 notlsDomains[relay] = pidDict[pid][relay]['domains']
 
-    if len(tlsRelays) > 0:
+    if (len(tlsRelays) > 0 and op['postfixMap']):
         policyFileLines = postfixTlsPolicyRead()
         postfixTlxPolicyWrite(policyFileLines)
 

@@ -16,6 +16,8 @@ request* on Github.
  * Ensure that Python (2.7) is installed.
  * Copy the script to your mail system (e.g. to ```/usr/local/bin/```) and make
    executable.
+ * Make sure that the script can write to *Postfix TLS policy map* and *notls
+   SQLite DB* and that the directories exist.
 
 # *Postfix TLS policy map* Configuration
 
@@ -32,7 +34,7 @@ request* on Github.
 	[...]
 	postrotate
 		[...]
-		/usr/local/bin/mail-tls-helper.py -d example.org -s /var/lib/mail-tls-helper/notlsRelays.sqlite 
+		/usr/local/bin/mail-tls-helper.py -d example.org
 	endscript
 }
 ```
