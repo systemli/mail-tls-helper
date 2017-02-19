@@ -238,7 +238,7 @@ def sendMail(to, subject, text, server="/usr/sbin/sendmail"):
     if op['catMails']:
         print("Mail: %s" % msg.as_string())
     else:
-        if server = "/usr/sbin/sendmail":
+        if server == "/usr/sbin/sendmail":
             Popen([server, "-t", "-oi"], stdin=PIPE)
             p.communicate(msg.as_string())
         else:
