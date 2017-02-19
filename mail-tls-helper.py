@@ -181,6 +181,7 @@ def postfixTlxPolicyWrite(policyFileLines):
     policyFile = open(op['postfixMapFile'], "a")
     for relay in tlsRelays:
         if relay not in policyFileLines:
+            print_dbg("Add relay '%s' to Postfix TLS policy map" % relay)
             policyFile.write("[%s] encrypt\n" % relay)
     policyFile.close()
 
