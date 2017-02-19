@@ -56,10 +56,11 @@ def options(args):
     op['printVersion'] = False
 
     try:
-        opts, args = getopt.getopt(args, 'Acd:Df:hl:m:Pr:s:SV',
+        opts, args = getopt.getopt(args, 'Acd:Df:hl:m:OPr:s:SV',
             ['no-alerts', 'cat-mails', 'domain=', 'debug', 'from=', 'help',
-             'postfix-log=', 'postfix-map-file=', 'no-postfix-map', 'rcpts=',
-             'sqlite-db=', 'no-summary', 'version'])
+             'postfix-log=', 'postfix-map-file=', 'no-postmap',
+             'no-postfix-map', 'rcpts=', 'sqlite-db=', 'no-summary',
+             'version'])
     except getopt.error as exc:
         print("%s: %s, try -h for a list of all the options" % (name, str(exc)))
         sys.exit(255)
@@ -79,6 +80,8 @@ def options(args):
             op['postfixMap'] = False
         elif opt in ['-m', '--postfix-map-file']:
             op['postfixMapFile'] = arg
+        elif opt in ['-O', '--no-postmap']:
+            op['postMap'] = False
         elif opt in ['-s', '--sqlite-db']:
             op['sqliteDB'] = arg
         elif opt in ['-A', '--no-alerts']:
@@ -99,6 +102,7 @@ def options(args):
     op['postfixLog'] = op.get('postfixLog', "/var/log/mail.log.1")
     op['postfixMap'] = op.get('postfixMap', True)
     op['postfixMapFile'] = op.get('postfixMapFile', "/etc/postfix/tls_policy")
+    op['postMap']    = op.get('postMap', True)
     op['sqliteDB']   = op.get('sqliteDB', "/var/lib/mail-tls-helper/notls.sqlite")
     op['alerts']     = op.get('alerts', True)
     op['summary']    = op.get('summary', True)
@@ -147,6 +151,7 @@ Postfix helper script that does the following:
   -l, --postfix-log=file       set Postfix mail log file (default: %s)
   -P, --no-postfix-map         don't update the Postfix TLS policy map file
   -m, --postfix-map-file=file  set Postfix TLS policy map file (default: %s)
+  -O, --no-postmap             don't postmap(1) the Postfix TLS policy map file
   -s, --sqlite-db=file         set SQLite DB file (default: %s)
   -A, --no-alerts              don't send alert mails
   -S, --no-summary             don't send summary mail
@@ -168,7 +173,7 @@ def print_dbg(msg):
 # Postfix TLS policy table functions
 def postfixTlsPolicyRead():
     if os.path.isfile(op['postfixMapFile']):
-        return [line.split()[0] for line in open(op['postfixMapFile'])]
+        return [line.split()[0].strip('[]') for line in open(op['postfixMapFile'])]
     else:
         return []
 
@@ -176,11 +181,12 @@ def postfixTlxPolicyWrite(policyFileLines):
     policyFile = open(op['postfixMapFile'], "a")
     for relay in tlsRelays:
         if relay not in policyFileLines:
-            policyFile.write("%s encrypt\n" % relay)
+            policyFile.write("[%s] encrypt\n" % relay)
     policyFile.close()
 
 def postmapTlsPolicy():
-    call(["postmap", op['postfixMapFile']])
+    if op['postMap']:
+        call(["postmap", op['postfixMapFile']])
 
 def sqliteDBRead():
     notlsRelayDict = {}
@@ -320,7 +326,7 @@ TLS connections: %s
     if (len(tlsRelays) > 0 and op['postfixMap']):
         policyFileLines = postfixTlsPolicyRead()
         postfixTlxPolicyWrite(policyFileLines)
-        postmapTlsPolicy()
+        postmapTlsPolicy() 
 
     if len(notlsRelays) > 0:
         notlsRelaysDict = sqliteDBRead()
