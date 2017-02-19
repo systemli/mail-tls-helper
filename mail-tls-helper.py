@@ -261,8 +261,11 @@ notlsDomains = set()
 lineCount = conCount = msgCount = sentCount = tlsCount = 0
 
 # Regexes
-regex_smtp = re.compile(r" postfix/smtp\[(?P<pid>[0-9]+)\]: (?P<msgid>[0-9A-F]+): .*to=<[^@]+@(?P<domain>[^, ]+)>, .*relay=(?P<relay>[\w\-\.]+)\[[0-9A-Fa-f\.:]+\]:[0-9]{1,5}, .*status=(?P<status>[a-z]+)")
-regex_tls  = re.compile(r" postfix/smtp\[(?P<pid>[0-9]+)\]: .*TLS connection established to (?P<relay>[\w\-\.]+)\[[0-9A-Fa-f\.:]+\]:[0-9]{1,5}")
+regex_postfix_smtp = re.compile(r" postfix/smtp\[(?P<pid>[0-9]+)\]: (?P<msgid>[0-9A-F]+): .*to=<[^@]+@(?P<domain>[^, ]+)>, .*relay=(?P<relay>[\w\-\.]+)\[[0-9A-Fa-f\.:]+\]:[0-9]{1,5}, .*status=(?P<status>[a-z]+)")
+regex_postfix_tls  = re.compile(r" postfix/smtp\[(?P<pid>[0-9]+)\]: .*TLS connection established to (?P<relay>[\w\-\.]+)\[[0-9A-Fa-f\.:]+\]:[0-9]{1,5}")
+# Untested:
+regex_exim4_smtp = re.compile(r"(?P<msgid>[\w\-]{14}) [=-]> .*T=remote_smtp .*H=(?P<relay>[\w\-\.]+) .*(X=(?P<tlsver>[A-Z0-9\.]+):[\w\-\.:_]+)? .*C=\"(?P<response>[^\"]+)\"")
+regex_exim4_comp = re.compile(r"(?P<msgid>[\w\-]{14}) Completed")
 
 # Main function
 if __name__ == '__main__':
@@ -275,7 +278,7 @@ if __name__ == '__main__':
         for line in logFile:
             lineCount += 1
             # search for SMTP client connections
-            m = regex_smtp.search(line)
+            m = regex_postfix_smtp.search(line)
             if m:
                 conCount += 1
                 pidDict[m.group('pid')][m.group('relay')]['domains'].add(m.group('domain'))
@@ -289,7 +292,7 @@ if __name__ == '__main__':
                 pidDict[m.group('pid')][m.group('relay')]['msgIds'][m.group('msgid')] = m.group('status')
                 continue
             # search for TLS connections
-            m = regex_tls.search(line)
+            m = regex_postfix_tls.search(line)
             if m:
                 pidDict[m.group('pid')][m.group('relay')]['tlsCount'] += 1
                 tlsCount += 1
