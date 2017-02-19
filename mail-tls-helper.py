@@ -24,7 +24,7 @@ import datetime, sqlite3
 import getopt, sys
 from collections import defaultdict
 from subprocess import call
-from subprocess import Popen
+from subprocess import Popen, PIPE
 import smtplib
 from email.MIMEMultipart import MIMEMultipart
 from email.MIMEText import MIMEText
