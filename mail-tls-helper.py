@@ -324,14 +324,11 @@ if __name__ == '__main__':
                 pidDict[m.group('pid')][m.group('relay')]['tlsCount'] += 1
                 tlsCount += 1
 
-    op['summBody'] += """
-
-Processed lines: %s
-Total connections: %s
-Total messages: %s
-Delivered messages: %s
-TLS connections: %s
-""" % (lineCount, conCount, msgCount, sentCount, tlsCount)
+    print_dbg("Processed lines: %s" % lineCount)
+    print_dbg("Total connections: %s" % conCount)
+    print_dbg("Total messages: %s" % msgCount)
+    print_dbg("Delivered messages: %s" % sentCount)
+    print_dbg("TLS connections: %s" % tlsCount)
 
     # Process pidDict, read relays into tlsRelays/notlsRelays and domains into
     # tlsDomains/notlsDomains
@@ -341,10 +338,13 @@ TLS connections: %s
     #   * Several connections may exist per msgID (e.g. if first attempt to
     #     send fails).
     #   * One TLS connection may be used to send several mails to one relay.
+    relayConnCount = relayTLSCount = 0
     for pid in pidDict:
-        #print_dbg("PID: %s" % pid)
-        print_dbg_pid(pid)
+        #print_dbg_pid(pid)
         for relay in pidDict[pid]:
+            relayConnCount += 1
+            if (pidDict[pid][relay]['tlsCount'] > 0):
+                relayTLSCount += 1
             if (pidDict[pid][relay]['tlsCount'] >= pidDict[pid][relay]['msgCount'] and
                 pidDict[pid][relay]['sentCount'] > 0):
                 # All connections encrypted, at least one msg delivered -> good
@@ -359,6 +359,10 @@ TLS connections: %s
                 notlsRelays.add(relay)
                 for domain in pidDict[pid][relay]['domains']:
                     notlsDomains.add(domain)
+
+    op['summBody'] += "\n\nTotal separate server connections: %s\n" % relayConnCount
+    op['summBody'] += "noTLS separate server connections(abs): %s\n" % (relayConnCount-relayTLSCount)
+    op['summBody'] += "noTLS separate server connections(rel): %.2f%%\n" % ((relayConnCount-relayTLSCount)/float(relayConnCount)*100)
 
     if (len(tlsDomains) > 0 and op['postfixMap']):
         policyFileLines = postfixTlsPolicyRead()
