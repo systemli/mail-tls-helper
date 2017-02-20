@@ -42,7 +42,6 @@ notlsRelays = set()
 notlsDomains = set()
 conCount = lineCount = msgCount = sentCount = tlsCount = 0
 
-
 # Structure for pidDict
 def relayFactory():
     return {
@@ -180,6 +179,20 @@ def print_dbg(msg):
     if op['debug']:
         print("DEBUG: %s" % msg)
 
+def print_dbg_pid(pid):
+    print_dbg("PID: %s" % pid)
+    for relay in pidDict[pid]:
+        print_dbg_relay(relay)
+
+def print_dbg_relay(relay):
+    print_dbg(" relay: %s" % relay)
+    print_dbg("  msgIds: %s" % pidDict[pid][relay]['msgIds'])
+    print_dbg("  domains: %s" % pidDict[pid][relay]['domains'])
+    print_dbg("  msgCount: %s" % pidDict[pid][relay]['msgCount'])
+    print_dbg("  conCount: %s" % pidDict[pid][relay]['conCount'])
+    print_dbg("  tlsCount: %s" % pidDict[pid][relay]['tlsCount'])
+    print_dbg("  sentCount: %s" % pidDict[pid][relay]['sentCount'])
+
 # Postfix TLS policy table functions
 def postfixTlsPolicyRead():
     if os.path.isfile(op['postfixMapFile']):
@@ -218,7 +231,6 @@ def sqliteDBRead():
     return notlsDict
 
 def notlsProcess(notlsDict):
-    global op
     op['summBody'] += "\nList of domains with no-TLS connections:"
     conn = sqlite3.connect(op['sqliteDB'])
     c = conn.cursor()
@@ -267,7 +279,8 @@ def sendMail(to, subject, text, server="/usr/sbin/sendmail"):
             smtp.close()
 
 # Regexes
-regex_postfix_smtp = re.compile(r" postfix/smtp\[(?P<pid>[0-9]+)\]: (?P<msgid>[0-9A-F]+): .*to=<[^@]+@(?P<domain>[^, ]+)>, .*relay=(?P<relay>[\w\-\.]+)\[[0-9A-Fa-f\.:]+\]:[0-9]{1,5}, .*status=(?P<status>[a-z]+)")
+regex_postfix_smtp = re.compile(r" postfix/smtp\[(?P<pid>[0-9]+)\]: (?P<msgid>[0-9A-F]+): to=<[^@]+@(?P<domain>[^, ]+)>, .*relay=(?P<relay>[\w\-\.]+)\[[0-9A-Fa-f\.:]+\]:[0-9]{1,5}, .*status=(?P<status>[a-z]+)")
+regex_postfix_conn_err = re.compile(r" postfix/smtp\[(?P<pid>[0-9]+)\]: (?P<msgid>[0-9A-F]+): (conversation withhost|lost connection with) (?P<relay>[\w\-\.]+)\[[0-9A-Fa-f\.:]+\](:[0-9]{1,5})? ")
 regex_postfix_tls  = re.compile(r" postfix/smtp\[(?P<pid>[0-9]+)\]: .*TLS connection established to (?P<relay>[\w\-\.]+)\[[0-9A-Fa-f\.:]+\]:[0-9]{1,5}")
 # Untested:
 regex_exim4_smtp = re.compile(r"(?P<msgid>[\w\-]{14}) [=-]> .*T=remote_smtp .*H=(?P<relay>[\w\-\.]+) .*(X=(?P<tlsver>[A-Z0-9\.]+):[\w\-\.:_]+)? .*C=\"(?P<response>[^\"]+)\"")
@@ -297,6 +310,14 @@ if __name__ == '__main__':
                     msgCount += 1
                 pidDict[m.group('pid')][m.group('relay')]['msgIds'][m.group('msgid')] = m.group('status')
                 continue
+            # search for connection errors
+            m = regex_postfix_conn_err.search(line)
+            if m:
+                conCount += 1
+                pidDict[m.group('pid')][m.group('relay')]['conCount'] += 1
+                if not m.group('msgid') in pidDict[m.group('pid')][m.group('relay')]['msgIds'].keys():
+                    pidDict[m.group('pid')][m.group('relay')]['msgCount'] += 1
+                    msgCount += 1
             # search for TLS connections
             m = regex_postfix_tls.search(line)
             if m:
@@ -321,9 +342,11 @@ TLS connections: %s
     #     send fails).
     #   * One TLS connection may be used to send several mails to one relay.
     for pid in pidDict:
+        #print_dbg("PID: %s" % pid)
+        print_dbg_pid(pid)
         for relay in pidDict[pid]:
             if (pidDict[pid][relay]['tlsCount'] >= pidDict[pid][relay]['msgCount'] and
-                pidDict[pid][relay]['sentCount'] >= 1):
+                pidDict[pid][relay]['sentCount'] > 0):
                 # All connections encrypted, at least one msg delivered -> good
                 tlsRelays.add(relay)
                 for domain in pidDict[pid][relay]['domains']:
