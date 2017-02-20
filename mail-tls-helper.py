@@ -33,6 +33,9 @@ from email.Utils import COMMASPACE, formatdate
 name = "mail-tls-helper.py"
 version = "0.7"
 
+global op
+op = {}
+
 # Structure for pidDict
 def relayFactory():
     return {
@@ -51,18 +54,17 @@ pidDict = defaultdict(pidFactory)
 
 # Parse options
 def options(args):
-    global op
     op['printHelp'] = False
     op['printVersion'] = False
 
     try:
-        opts, args = getopt.getopt(args, 'Acd:Df:hl:Op:Pr:s:SV',
-            ['no-alerts', 'cat-mails', 'domain=', 'debug', 'from=', 'help',
-             'postfix-log=', 'no-postmap', 'postfix-map-file=',
+        opts, args = getopt.getopt(args, 'Ad:f:hl:m:Op:Pr:s:SV',
+            ['no-alerts', 'domain=', 'debug', 'from=', 'help',
+             'mail-log=', 'mode=', 'no-postmap', 'postfix-map-file=',
              'no-postfix-map', 'rcpts=', 'sqlite-db=', 'no-summary',
              'version'])
     except getopt.error as exc:
-        print("%s: %s, try -h for a list of all the options" % (name, str(exc)))
+        print("%s: %s, try -h for a list of all the options" % (name, str(exc)), file=sys.stderr)
         sys.exit(255)
 
     for opt, arg in opts:
@@ -72,9 +74,15 @@ def options(args):
         elif opt in ['-V', '--version']:
             op['printVersion'] = True
             break
-        elif opt in ['-D', '--debug']:
+        elif opt in ['-m', '--mode']:
+            if (arg == 'postfix'):
+                op['mode'] = arg
+            else:
+                print("%s: unknon mode %s, try -h for a list of all the options" % (name, arg), file=sys.stderr)
+                sys.exit(255)
+        elif opt in ['--debug']:
             op['debug'] = True
-        elif opt in ['-l', '--postfix-log']:
+        elif opt in ['-l', '--mail-log']:
             op['postfixLog'] = arg
         elif opt in ['-P', '--no-postfix-map']:
             op['postfixMap'] = False
@@ -88,8 +96,6 @@ def options(args):
             op['alerts'] = False
         elif opt in ['-S', '--no-summary']:
             op['summary'] = False
-        elif opt in ['-c', '--cat-mails']:
-            op['catMails'] = True
         elif opt in ['-d', '--domain']:
             op['domain'] = arg
         elif opt in ['-f', '--from']:
@@ -99,6 +105,7 @@ def options(args):
 
     # Set options to defaults if not set yet
     op['debug']      = op.get('debug', False)
+    op['mode']       = op.get('mode', "mode")
     op['postfixLog'] = op.get('postfixLog', "/var/log/mail.log.1")
     op['postfixMap'] = op.get('postfixMap', True)
     op['postfixMapFile'] = op.get('postfixMapFile', "/etc/postfix/tls_policy")
@@ -106,7 +113,6 @@ def options(args):
     op['sqliteDB']   = op.get('sqliteDB', "/var/lib/mail-tls-helper/notls.sqlite")
     op['alerts']     = op.get('alerts', True)
     op['summary']    = op.get('summary', True)
-    op['catMails']   = op.get('catMails', False)
     op['domain']     = op.get('domain', "example.org")
     op['from']       = op.get('from', "admin@%s" % op['domain'])
     op['rcpts']      = op.get('rcpts', [ "admin@%s" % op['domain'] ])
@@ -144,15 +150,15 @@ Postfix helper script that does the following:
 %s options:
   -h, --help                   display this help message
   -V, --version                display version number
-  -D, --debug                  enable debugging messages
-  -l, --postfix-log=file       set Postfix mail log file (default: %s)
+      --debug                  run in debugging mode, don't do anything
+  -m, --mode=[postfix]         set mode (currently only postfix is supported)
+  -l, --mail-log=file          set mail log file (default: %s)
   -P, --no-postfix-map         don't update the Postfix TLS policy map file
   -p, --postfix-map-file=file  set Postfix TLS policy map file (default: %s)
   -O, --no-postmap             don't postmap(1) the Postfix TLS policy map file
   -s, --sqlite-db=file         set SQLite DB file (default: %s)
-  -A, --no-alerts              don't send alert mails
-  -S, --no-summary             don't send summary mail
-  -c, --cat-mails              display mails instead of sending them
+  -A, --no-alerts              don't send out alert mails
+  -S, --no-summary             don't send out summary mail
   -d, --domain=name            set organization domain (default: %s)
   -f, --from=address           set sender address (default: %s)
   -r, --rcpts=addressses       set summary mail rcpt addresses (default: %s)
@@ -176,16 +182,17 @@ def postfixTlsPolicyRead():
         return []
 
 def postfixTlxPolicyWrite(policyFileLines):
+    fmode = "r" if op['debug'] else "w"
     policyFile = open(op['postfixMapFile'], "a")
     for domain in tlsDomains:
         if domain not in policyFileLines:
             print_dbg("Add domain '%s' to Postfix TLS policy map" % domain)
             #policyFile.write("[%s] encrypt\n" % domain)
-            policyFile.write("%s encrypt\n" % domain)
+            if not op['debug']: policyFile.write("%s encrypt\n" % domain)
     policyFile.close()
 
 def postmapTlsPolicy():
-    if op['postMap']:
+    if op['postMap'] and not op['debug']:
         call(["postmap", op['postfixMapFile']])
 
 def sqliteDBRead():
@@ -218,10 +225,10 @@ def notlsProcess(notlsDict):
                 continue
             else:
                 print_dbg("Update domain %s in sqlite DB" % domain)
-                c.execute("UPDATE notlsDomains SET alertCount=?, alertDate=? WHERE domain=?", (notlsDict[domain]['alertCount']+1, datetime.date.today(), domain))
+                if not op['debug']: c.execute("UPDATE notlsDomains SET alertCount=?, alertDate=? WHERE domain=?", (notlsDict[domain]['alertCount']+1, datetime.date.today(), domain))
         else:
             print_dbg("Insert domain %s into sqlite DB" % domain)
-            c.execute("INSERT INTO notlsDomains (domain, alertCount, alertDate) VALUES (?,?,?)", (domain, 1, datetime.date.today()))
+            if not op['debug']: c.execute("INSERT INTO notlsDomains (domain, alertCount, alertDate) VALUES (?,?,?)", (domain, 1, datetime.date.today()))
         if op['alerts']:
             op['summBody'] += " [sent alert mail]"
             sendMail(['postmaster@'+domain],
@@ -241,8 +248,8 @@ def sendMail(to, subject, text, server="/usr/sbin/sendmail"):
     msg['Date'] = formatdate(localtime=True)
     msg['Subject'] = subject
     msg.attach(MIMEText(text))
-    if op['catMails']:
-        print("Mail: %s" % msg.as_string())
+    if op['debug']:
+        print_dbg("Mail: %s" % msg.as_string())
     else:
         if server == "/usr/sbin/sendmail":
             p = Popen([server, "-t", "-oi"], stdin=PIPE)
@@ -253,7 +260,6 @@ def sendMail(to, subject, text, server="/usr/sbin/sendmail"):
             smtp.close()
 
 # Variable declarations
-op = {}
 tlsRelays = set()
 tlsDomains = set()
 notlsRelays = set()
@@ -304,7 +310,9 @@ Total connections: %s
 Total messages: %s
 Delivered messages: %s
 TLS connections: %s
-""" % (lineCount, conCount, msgCount, sentCount, tlsCount)
+Non TLS connections(abs): %s
+Non TLS connections(rel): %s
+""" % (lineCount, conCount, msgCount, sentCount, tlsCount, msgCount-tlsCount, ((msgCount-tlsCount)/msgCount * 100) )
 
     # Process pidDict, read relays into tlsRelays/notlsRelays and domains into
     # tlsDomains/notlsDomains
