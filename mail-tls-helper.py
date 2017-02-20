@@ -304,7 +304,9 @@ Total connections: %s
 Total messages: %s
 Delivered messages: %s
 TLS connections: %s
-""" % (lineCount, conCount, msgCount, sentCount, tlsCount)
+Non TLS connections(abs): %s
+Non TLS connections(rel): %s
+""" % (lineCount, conCount, msgCount, sentCount, tlsCount, msgCount-tlsCount, ((msgCount-tlsCount)/msgCount * 100) )
 
     # Process pidDict, read relays into tlsRelays/notlsRelays and domains into
     # tlsDomains/notlsDomains
