@@ -33,8 +33,15 @@ from email.Utils import COMMASPACE, formatdate
 name = "mail-tls-helper.py"
 version = "0.7"
 
-global op
+global op, notlsDomains, notlsRelays, tlsDomains, tlsRelays
+global conCount, lineCount, msgCount, sentCount, tlsCount
 op = {}
+tlsRelays = set()
+tlsDomains = set()
+notlsRelays = set()
+notlsDomains = set()
+conCount = lineCount = msgCount = sentCount = tlsCount = 0
+
 
 # Structure for pidDict
 def relayFactory():
@@ -259,13 +266,6 @@ def sendMail(to, subject, text, server="/usr/sbin/sendmail"):
             smtp.sendmail(op['from'], to, msg.as_string())
             smtp.close()
 
-# Variable declarations
-tlsRelays = set()
-tlsDomains = set()
-notlsRelays = set()
-notlsDomains = set()
-lineCount = conCount = msgCount = sentCount = tlsCount = 0
-
 # Regexes
 regex_postfix_smtp = re.compile(r" postfix/smtp\[(?P<pid>[0-9]+)\]: (?P<msgid>[0-9A-F]+): .*to=<[^@]+@(?P<domain>[^, ]+)>, .*relay=(?P<relay>[\w\-\.]+)\[[0-9A-Fa-f\.:]+\]:[0-9]{1,5}, .*status=(?P<status>[a-z]+)")
 regex_postfix_tls  = re.compile(r" postfix/smtp\[(?P<pid>[0-9]+)\]: .*TLS connection established to (?P<relay>[\w\-\.]+)\[[0-9A-Fa-f\.:]+\]:[0-9]{1,5}")
@@ -310,9 +310,7 @@ Total connections: %s
 Total messages: %s
 Delivered messages: %s
 TLS connections: %s
-Non TLS connections(abs): %s
-Non TLS connections(rel): %s
-""" % (lineCount, conCount, msgCount, sentCount, tlsCount, msgCount-tlsCount, ((msgCount-tlsCount)/msgCount * 100) )
+""" % (lineCount, conCount, msgCount, sentCount, tlsCount)
 
     # Process pidDict, read relays into tlsRelays/notlsRelays and domains into
     # tlsDomains/notlsDomains
