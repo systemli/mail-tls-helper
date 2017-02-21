@@ -304,10 +304,10 @@ if __name__ == '__main__':
             # search for SMTP client connections
             m = regex_postfix_smtp.search(line)
             if m:
+                conCount += 1
                 relay = m.group('relay').lower()
                 domain = m.group('domain').lower()
-                conCount += 1
-                pidDict[m.group('pid')][relay]['domains'].add()
+                pidDict[m.group('pid')][relay]['domains'].add(domain)
                 pidDict[m.group('pid')][relay]['conCount'] += 1
                 if m.group('status') == 'sent':
                     pidDict[m.group('pid')][relay]['sentCount'] += 1
