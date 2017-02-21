@@ -89,7 +89,7 @@ def options(args):
         elif opt in ['--debug']:
             op['debug'] = True
         elif opt in ['-l', '--mail-log']:
-            op['postfixLog'] = arg
+            op['mailLog'] = arg
         elif opt in ['-P', '--no-postfix-map']:
             op['postfixMap'] = False
         elif opt in ['-p', '--postfix-map-file']:
@@ -112,7 +112,7 @@ def options(args):
     # Set options to defaults if not set yet
     op['debug']      = op.get('debug', False)
     op['mode']       = op.get('mode', "mode")
-    op['postfixLog'] = op.get('postfixLog', "/var/log/mail.log.1")
+    op['mailLog']    = op.get('mailLog', "/var/log/mail.log.1")
     op['postfixMap'] = op.get('postfixMap', True)
     op['postfixMapFile'] = op.get('postfixMapFile', "/etc/postfix/tls_policy")
     op['postMap']    = op.get('postMap', True)
@@ -168,7 +168,7 @@ Postfix helper script that does the following:
   -d, --domain=name            set organization domain (default: %s)
   -f, --from=address           set sender address (default: %s)
   -r, --rcpts=addressses       set summary mail rcpt addresses (default: %s)
-""" % (name, op['postfixLog'], op['postfixMapFile'], op['sqliteDB'], op['domain'], op['from'], ','.join(op['rcpts'])), file=sys.stderr)
+""" % (name, op['mailLog'], op['postfixMapFile'], op['sqliteDB'], op['domain'], op['from'], ','.join(op['rcpts'])), file=sys.stderr)
         sys.exit(0)
     elif op['printVersion']:
         print("%s %s" % (name, version), file=sys.stderr)
@@ -298,7 +298,7 @@ if __name__ == '__main__':
     # Read SMTP client connections from Postfix logfile into pidDict
     # * SMTP client connection logs don't contain TLS evidence. Thus
     #   TLS connections logs have to be parsed alongside.
-    with open(op['postfixLog'], "r") as logFile:
+    with open(op['mailLog'], "r") as logFile:
         for line in logFile:
             lineCount += 1
             # search for SMTP client connections
