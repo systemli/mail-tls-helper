@@ -122,8 +122,8 @@ def options(args):
     op['domain']     = op.get('domain', "example.org")
     op['from']       = op.get('from', "admin@%s" % op['domain'])
     op['rcpts']      = op.get('rcpts', [ "admin@%s" % op['domain'] ])
-    op['summSubj']  = op.get('sumSubj', "[%s] no-TLS outgoing mail" % (os.uname()[1]))
-    op['summBody']  = op.get('sumSubj', "Summary mail for no-TLS outgoing mail on %s" % (os.uname()[1]))
+    op['summSubj']  = op.get('sumSubj', "[%s] mail-tls-helper: summary" % (os.uname()[1]))
+    op['summBody']  = op.get('sumSubj', "Summary mail by mail-tls-helper on %s" % (os.uname()[1]))
     op['alertSubj'] = op.get('alertSubj', "Please add TLS support to the mailservers for 'XDOMAINX'")
     op['alertBody'] = op.get('alertBody', """Hello postmaster for mail domain 'XDOMAINX',
 
