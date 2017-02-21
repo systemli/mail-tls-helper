@@ -236,6 +236,11 @@ def notlsProcess(notlsDict):
     c = conn.cursor()
     c.execute("CREATE TABLE IF NOT EXISTS notlsDomains (domain text, alertCount integer, alertDate date)")
     for domain in notlsDomains:
+        if domain in tlsDomains:
+            # ignore individual no-TLS connections when other connections
+            # to the same server were encrypted. TLS to the domain will be
+            # mandatory in the future anyway.
+            continue
         op['summBody'] += "\n * %s" % (domain)
         if domain in notlsDict:
             # send alerts every 30 days
@@ -343,22 +348,21 @@ if __name__ == '__main__':
     #   * One TLS connection may be used to send several mails to one relay.
     relayConnCount = relayTLSCount = 0
     for pid in pidDict:
-        #print_dbg_pid(pid)
+        print_dbg_pid(pid)
         for relay in pidDict[pid]:
             relayConnCount += 1
-            if (pidDict[pid][relay]['tlsCount'] > 0):
-                relayTLSCount += 1
-            if (pidDict[pid][relay]['tlsCount'] >= pidDict[pid][relay]['msgCount'] and
+            if (pidDict[pid][relay]['tlsCount'] > 0 and
                 pidDict[pid][relay]['sentCount'] > 0):
-                # All connections encrypted, at least one msg delivered -> good
+                # At least one encrypted connection and one delivered message
+                relayTLSCount += 1
                 tlsRelays.add(relay)
                 for domain in pidDict[pid][relay]['domains']:
                     tlsDomains.add(domain)
-            elif pidDict[pid][relay]['sentCount'] == 0:
-                # No message was delivered, ignore for now
-                continue
+            elif (pidDict[pid][relay]['tlsCount'] > 0):
+                # No message got delivered, still encrypted connection: ignore
+                relayTLSCount += 1
             else:
-                # At least some connections were unencrypted
+                # Only unencrypted connections
                 notlsRelays.add(relay)
                 for domain in pidDict[pid][relay]['domains']:
                     notlsDomains.add(domain)
