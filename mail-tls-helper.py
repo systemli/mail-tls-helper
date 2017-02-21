@@ -299,29 +299,32 @@ if __name__ == '__main__':
             # search for SMTP client connections
             m = regex_postfix_smtp.search(line)
             if m:
+                relay = m.group('relay').lower()
                 conCount += 1
-                pidDict[m.group('pid')][m.group('relay')]['domains'].add(m.group('domain'))
-                pidDict[m.group('pid')][m.group('relay')]['conCount'] += 1
+                pidDict[m.group('pid')][relay]['domains'].add(m.group('domain'))
+                pidDict[m.group('pid')][relay]['conCount'] += 1
                 if m.group('status') == 'sent':
-                    pidDict[m.group('pid')][m.group('relay')]['sentCount'] += 1
+                    pidDict[m.group('pid')][relay]['sentCount'] += 1
                     sentCount += 1
-                if not m.group('msgid') in pidDict[m.group('pid')][m.group('relay')]['msgIds'].keys():
-                    pidDict[m.group('pid')][m.group('relay')]['msgCount'] += 1
+                if not m.group('msgid') in pidDict[m.group('pid')][relay]['msgIds'].keys():
+                    pidDict[m.group('pid')][relay]['msgCount'] += 1
                     msgCount += 1
-                pidDict[m.group('pid')][m.group('relay')]['msgIds'][m.group('msgid')] = m.group('status')
+                pidDict[m.group('pid')][relay]['msgIds'][m.group('msgid')] = m.group('status')
                 continue
             # search for connection errors
             m = regex_postfix_conn_err.search(line)
             if m:
+                relay = m.group('relay').lower()
                 conCount += 1
-                pidDict[m.group('pid')][m.group('relay')]['conCount'] += 1
-                if not m.group('msgid') in pidDict[m.group('pid')][m.group('relay')]['msgIds'].keys():
-                    pidDict[m.group('pid')][m.group('relay')]['msgCount'] += 1
+                pidDict[m.group('pid')][relay]['conCount'] += 1
+                if not m.group('msgid') in pidDict[m.group('pid')][relay]['msgIds'].keys():
+                    pidDict[m.group('pid')][relay]['msgCount'] += 1
                     msgCount += 1
             # search for TLS connections
             m = regex_postfix_tls.search(line)
             if m:
-                pidDict[m.group('pid')][m.group('relay')]['tlsCount'] += 1
+                relay = m.group('relay').lower()
+                pidDict[m.group('pid')][relay]['tlsCount'] += 1
                 tlsCount += 1
 
     print_dbg("Processed lines: %s" % lineCount)
