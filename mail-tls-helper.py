@@ -305,8 +305,9 @@ if __name__ == '__main__':
             m = regex_postfix_smtp.search(line)
             if m:
                 relay = m.group('relay').lower()
+                domain = m.group('domain').lower()
                 conCount += 1
-                pidDict[m.group('pid')][relay]['domains'].add(m.group('domain'))
+                pidDict[m.group('pid')][relay]['domains'].add()
                 pidDict[m.group('pid')][relay]['conCount'] += 1
                 if m.group('status') == 'sent':
                     pidDict[m.group('pid')][relay]['sentCount'] += 1
@@ -348,7 +349,7 @@ if __name__ == '__main__':
     #   * One TLS connection may be used to send several mails to one relay.
     relayConnCount = relayTLSCount = 0
     for pid in pidDict:
-        print_dbg_pid(pid)
+        #print_dbg_pid(pid)
         for relay in pidDict[pid]:
             relayConnCount += 1
             if (pidDict[pid][relay]['tlsCount'] > 0 and
