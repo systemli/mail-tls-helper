@@ -22,9 +22,8 @@ request* on Github.
 # *Postfix TLS policy map* Configuration
 
  * Configure the *Postfix TLS policy map* in ```main.cf```:
-   ```
-smtp_tls_policy_maps = hash:/etc/postfix/tls_policy
-```
+ 
+```smtp_tls_policy_maps = hash:/etc/postfix/tls_policy```
 
 # Running the script
 
@@ -33,7 +32,8 @@ smtp_tls_policy_maps = hash:/etc/postfix/tls_policy
    mail log file just after rotation. This can be done by configuring a
    ```post-script``` in the corresponding *logrotate configure include*
    (e.g. ```/etc/logrotate.d/rsyslog```):
-   ```
+
+```
 /var/log/mail.log
 {
 	[...]
