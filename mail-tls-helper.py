@@ -5,7 +5,7 @@
 #  * alert postmasters of mailservers that don't support STARTTLS
 #
 # Author: doobry@systemli.org
-# Version: 0.7 [2017-02-19]
+# Version: 0.7.1 [2017-02-19]
 # License: GPL-3
 #
 # TODO:
@@ -31,7 +31,7 @@ from email.MIMEText import MIMEText
 from email.Utils import COMMASPACE, formatdate
 
 name = "mail-tls-helper.py"
-version = "0.7"
+version = "0.7.1"
 
 global op, notlsDomains, notlsRelays, tlsDomains, tlsRelays
 global conCount, lineCount, msgCount, sentCount, tlsCount
