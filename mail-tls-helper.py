@@ -64,8 +64,8 @@ def options(args):
     op['printVersion'] = False
 
     try:
-        opts, args = getopt.getopt(args, 'Ad:f:hl:m:Op:Pr:s:SV',
-            ['no-alerts', 'domain=', 'debug', 'from=', 'help',
+        opts, args = getopt.getopt(args, 'ad:f:hl:m:Op:Pr:s:SV',
+            ['alerts', 'domain=', 'debug', 'from=', 'help',
              'mail-log=', 'mode=', 'no-postmap', 'postfix-map-file=',
              'no-postfix-map', 'rcpts=', 'sqlite-db=', 'no-summary',
              'version'])
@@ -98,8 +98,8 @@ def options(args):
             op['postMap'] = False
         elif opt in ['-s', '--sqlite-db']:
             op['sqliteDB'] = arg
-        elif opt in ['-A', '--no-alerts']:
-            op['alerts'] = False
+        elif opt in ['-a', '--alerts']:
+            op['alerts'] = True
         elif opt in ['-S', '--no-summary']:
             op['summary'] = False
         elif opt in ['-d', '--domain']:
@@ -117,7 +117,7 @@ def options(args):
     op['postfixMapFile'] = op.get('postfixMapFile', "/etc/postfix/tls_policy")
     op['postMap']    = op.get('postMap', True)
     op['sqliteDB']   = op.get('sqliteDB', "/var/lib/mail-tls-helper/notls.sqlite")
-    op['alerts']     = op.get('alerts', True)
+    op['alerts']     = op.get('alerts', False)
     op['summary']    = op.get('summary', True)
     op['domain']     = op.get('domain', "example.org")
     op['from']       = op.get('from', "admin@%s" % op['domain'])
@@ -151,7 +151,7 @@ Kind regards,
         print("""
 Postfix helper script that does the following:
  * make TLS mandatory for outgoing mail wherever possible and
- * alert postmasters of mailservers that don't support STARTTLS
+ * optionally alert postmasters of mailservers that don't support STARTTLS
 
 %s options:
   -h, --help                   display this help message
@@ -163,7 +163,7 @@ Postfix helper script that does the following:
   -p, --postfix-map-file=file  set Postfix TLS policy map file (default: %s)
   -O, --no-postmap             don't postmap(1) the Postfix TLS policy map file
   -s, --sqlite-db=file         set SQLite DB file (default: %s)
-  -A, --no-alerts              don't send out alert mails
+  -a, --alerts                 send out alert mails
   -S, --no-summary             don't send out summary mail
   -d, --domain=name            set organization domain (default: %s)
   -f, --from=address           set sender address (default: %s)

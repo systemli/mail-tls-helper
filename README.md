@@ -3,7 +3,7 @@
 Postfix helper script that does the following:
 
  * make TLS mandatory for outgoing mail wherever possible and
- * alert postmasters of domains that don't support STARTTLS
+ * optionally alert postmasters of domains that don't support STARTTLS
 
 In case of bugs, ideas, enhancements, feel free to open an *issue* or *pull
 request* on Github.
@@ -46,6 +46,10 @@ request* on Github.
 
 ## Changelog
 
+* 2017-05-18: version 0.7.1
+  * don't send alert mails by default (Fixes #6)
+  * consequently replace commandline options '-A'/'--no-alerts' by
+    '-a'/'--alerts'.
 * 2017-02-19: version 0.7
   * renamed to ```mail-tls-helper```
   * complete rewrite in Python
