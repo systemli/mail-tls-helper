@@ -255,7 +255,7 @@ def notlsProcess(notlsDict):
             if not op['debug']: c.execute("INSERT INTO notlsDomains (domain, alertCount, alertDate) VALUES (?,?,?)", (domain, 1, datetime.date.today()))
         if op['alerts']:
             op['summBody'] += " [sent alert mail]"
-            sendMail(['postmaster@'+domain],
+            sendMail(op['from'], ['postmaster@'+domain],
                      op['alertSubj'].replace('XDOMAINX', domain),
                      op['alertBody'].replace('XDOMAINX', domain))
     op['summBody'] += "\n\n"
@@ -264,10 +264,10 @@ def notlsProcess(notlsDict):
     conn.close()
 
 # Send mail
-def sendMail(to, subject, text, server="/usr/sbin/sendmail"):
+def sendMail(sender, to subject, text, server="/usr/sbin/sendmail"):
     assert type(to)==list
     msg = MIMEMultipart()
-    msg['From'] = op['from']
+    msg['From'] = sender
     msg['To'] = COMMASPACE.join(to)
     msg['Date'] = formatdate(localtime=True)
     msg['Subject'] = subject
@@ -276,11 +276,11 @@ def sendMail(to, subject, text, server="/usr/sbin/sendmail"):
         print_dbg("Mail: %s" % msg.as_string())
     else:
         if server == "/usr/sbin/sendmail":
-            p = Popen([server, "-t", "-oi", "-f", op['from']], stdin=PIPE)
+            p = Popen([server, "-t", "-oi", "-f", sender], stdin=PIPE)
             p.communicate(msg.as_string())
         else:
             smtp = smtplib.SMTP(server)
-            smtp.sendmail(op['from'], to, msg.as_string())
+            smtp.sendmail(sender, to, msg.as_string())
             smtp.close()
 
 # Regexes
@@ -381,4 +381,4 @@ if __name__ == '__main__':
         notlsDict = sqliteDBRead()
         notlsProcess(notlsDict)
         if op['summary']:
-            sendMail(op['rcpts'],op['summSubj'],op['summBody'])
+            sendMail(op['from'],op['rcpts'],op['summSubj'],op['summBody'])
