@@ -46,6 +46,8 @@ request* on Github.
 
 ## Changelog
 
+* 2017-06-04: version 0.7.2
+  * set envelope sender address to op['from'] when using sendmail.
 * 2017-05-18: version 0.7.1
   * don't send alert mails by default (Fixes #6)
   * consequently replace commandline options '-A'/'--no-alerts' by

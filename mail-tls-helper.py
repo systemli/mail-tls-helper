@@ -31,7 +31,7 @@ from email.MIMEText import MIMEText
 from email.Utils import COMMASPACE, formatdate
 
 name = "mail-tls-helper.py"
-version = "0.7.1"
+version = "0.7.2"
 
 global op, notlsDomains, notlsRelays, tlsDomains, tlsRelays
 global conCount, lineCount, msgCount, sentCount, tlsCount
@@ -276,7 +276,7 @@ def sendMail(to, subject, text, server="/usr/sbin/sendmail"):
         print_dbg("Mail: %s" % msg.as_string())
     else:
         if server == "/usr/sbin/sendmail":
-            p = Popen([server, "-t", "-oi"], stdin=PIPE)
+            p = Popen([server, "-t", "-oi", "-f", op['from']], stdin=PIPE)
             p.communicate(msg.as_string())
         else:
             smtp = smtplib.SMTP(server)
