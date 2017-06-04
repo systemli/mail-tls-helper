@@ -264,7 +264,7 @@ def notlsProcess(notlsDict):
     conn.close()
 
 # Send mail
-def sendMail(sender, to subject, text, server="/usr/sbin/sendmail"):
+def sendMail(sender, to, subject, text, server="/usr/sbin/sendmail"):
     assert type(to)==list
     msg = MIMEMultipart()
     msg['From'] = sender
