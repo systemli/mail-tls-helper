@@ -46,6 +46,8 @@ request* on Github.
 
 ## Changelog
 
+* 2017-06-04: version 0.7.3
+  * add support for a relay whitelist
 * 2017-06-04: version 0.7.2
   * set envelope sender address to op['from'] when using sendmail.
 * 2017-05-18: version 0.7.1

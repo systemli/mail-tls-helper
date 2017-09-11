@@ -64,11 +64,11 @@ def options(args):
     op['printVersion'] = False
 
     try:
-        opts, args = getopt.getopt(args, 'ad:f:hl:m:Op:Pr:s:SV',
+        opts, args = getopt.getopt(args, 'ad:f:hl:m:Op:Pr:s:SVw:',
             ['alerts', 'domain=', 'debug', 'from=', 'help',
              'mail-log=', 'mode=', 'no-postmap', 'postfix-map-file=',
              'no-postfix-map', 'rcpts=', 'sqlite-db=', 'no-summary',
-             'version'])
+             'version', 'whitelist='])
     except getopt.error as exc:
         print("%s: %s, try -h for a list of all the options" % (name, str(exc)), file=sys.stderr)
         sys.exit(255)
@@ -90,6 +90,8 @@ def options(args):
             op['debug'] = True
         elif opt in ['-l', '--mail-log']:
             op['mailLog'] = arg
+        elif opt in ['-w', '--whitelist']:
+            op['whitelist'] = arg
         elif opt in ['-P', '--no-postfix-map']:
             op['postfixMap'] = False
         elif opt in ['-p', '--postfix-map-file']:
@@ -113,6 +115,7 @@ def options(args):
     op['debug']      = op.get('debug', False)
     op['mode']       = op.get('mode', "mode")
     op['mailLog']    = op.get('mailLog', "/var/log/mail.log.1")
+    op['whitelist']  = op.get('whitelist', False)
     op['postfixMap'] = op.get('postfixMap', True)
     op['postfixMapFile'] = op.get('postfixMapFile', "/etc/postfix/tls_policy")
     op['postMap']    = op.get('postMap', True)
@@ -159,12 +162,13 @@ Postfix helper script that does the following:
       --debug                  run in debugging mode, don't do anything
   -m, --mode=[postfix]         set mode (currently only postfix is supported)
   -l, --mail-log=file          set mail log file (default: %s)
-  -P, --no-postfix-map         don't update the Postfix TLS policy map file
+  -w, --whitelist=file         file containing relay whitelist
   -p, --postfix-map-file=file  set Postfix TLS policy map file (default: %s)
-  -O, --no-postmap             don't postmap(1) the Postfix TLS policy map file
   -s, --sqlite-db=file         set SQLite DB file (default: %s)
   -a, --alerts                 send out alert mails
   -S, --no-summary             don't send out summary mail
+  -P, --no-postfix-map         don't update the Postfix TLS policy map file
+  -O, --no-postmap             don't postmap(1) the Postfix TLS policy map file
   -d, --domain=name            set organization domain (default: %s)
   -f, --from=address           set sender address (default: %s)
   -r, --rcpts=addressses       set summary mail rcpt addresses (default: %s)
@@ -202,7 +206,6 @@ def postfixTlsPolicyRead():
         return []
 
 def postfixTlxPolicyWrite(policyFileLines):
-    fmode = "r" if op['debug'] else "w"
     policyFile = open(op['postfixMapFile'], "a")
     for domain in tlsDomains:
         if domain not in policyFileLines:
@@ -263,6 +266,16 @@ def notlsProcess(notlsDict):
     conn.commit()
     conn.close()
 
+# read in whitelist
+def read_whitelist():
+    whitelist = []
+    if op['whitelist']:
+        with open(op['whitelist'], "r") as f:
+            whitelist = f.readlines()
+    whitelist = [x.strip() for x in whitelist]
+    whitelist.extend(['127.0.0.1', 'localhost'])
+    return whitelist
+
 # Send mail
 def sendMail(sender, to, subject, text, server="/usr/sbin/sendmail"):
     assert type(to)==list
@@ -295,6 +308,7 @@ regex_exim4_comp = re.compile(r"(?P<msgid>[\w\-]{14}) Completed")
 if __name__ == '__main__':
     options(sys.argv[1:])
 
+    whitelist = read_whitelist()
     # Read SMTP client connections from Postfix logfile into pidDict
     # * SMTP client connection logs don't contain TLS evidence. Thus
     #   TLS connections logs have to be parsed alongside.
@@ -306,6 +320,9 @@ if __name__ == '__main__':
             if m:
                 conCount += 1
                 relay = m.group('relay').lower()
+                if relay in whitelist:
+                    print_dbg("Skipping relay from whitelist: %s (smtp)" % relay)
+                    continue
                 domain = m.group('domain').lower()
                 pidDict[m.group('pid')][relay]['domains'].add(domain)
                 pidDict[m.group('pid')][relay]['conCount'] += 1
@@ -321,6 +338,9 @@ if __name__ == '__main__':
             m = regex_postfix_conn_err.search(line)
             if m:
                 relay = m.group('relay').lower()
+                if relay in whitelist:
+                    print_dbg("Skipping relay from whitelist: %s (conn_err)" % relay)
+                    continue
                 conCount += 1
                 pidDict[m.group('pid')][relay]['conCount'] += 1
                 if not m.group('msgid') in pidDict[m.group('pid')][relay]['msgIds'].keys():
@@ -330,6 +350,9 @@ if __name__ == '__main__':
             m = regex_postfix_tls.search(line)
             if m:
                 relay = m.group('relay').lower()
+                if relay in whitelist:
+                    print_dbg("Skipping relay from whitelist: %s (tls)" % relay)
+                    continue
                 pidDict[m.group('pid')][relay]['tlsCount'] += 1
                 tlsCount += 1
 
