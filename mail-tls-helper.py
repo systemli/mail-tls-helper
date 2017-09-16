@@ -223,6 +223,7 @@ def sqliteDBRead():
     if os.path.isfile(op['sqliteDB']):
         conn = sqlite3.connect(op['sqliteDB'])
         c = conn.cursor()
+        c.execute("CREATE TABLE IF NOT EXISTS notlsDomains (domain text, alertCount integer, alertDate date)")
         c.execute("SELECT * FROM notlsDomains")
         rows = c.fetchall()
         conn.close()
@@ -237,7 +238,6 @@ def notlsProcess(notlsDict):
     op['summBody'] += "\nList of domains with no-TLS connections:"
     conn = sqlite3.connect(op['sqliteDB'])
     c = conn.cursor()
-    c.execute("CREATE TABLE IF NOT EXISTS notlsDomains (domain text, alertCount integer, alertDate date)")
     for domain in notlsDomains:
         if domain in tlsDomains:
             # ignore individual no-TLS connections when other connections
