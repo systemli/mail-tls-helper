@@ -205,7 +205,7 @@ def postfixTlsPolicyRead():
     else:
         return []
 
-def postfixTlxPolicyWrite(policyFileLines):
+def postfixTlsPolicyWrite(policyFileLines):
     policyFile = open(op['postfixMapFile'], "a")
     for domain in tlsDomains:
         if domain not in policyFileLines:
@@ -267,7 +267,7 @@ def notlsProcess(notlsDict):
     conn.close()
 
 # read in whitelist
-def read_whitelist():
+def readWhitelist():
     whitelist = []
     if op['whitelist']:
         with open(op['whitelist'], "r") as f:
@@ -308,7 +308,7 @@ regex_exim4_comp = re.compile(r"(?P<msgid>[\w\-]{14}) Completed")
 if __name__ == '__main__':
     options(sys.argv[1:])
 
-    whitelist = read_whitelist()
+    whitelist = readWhitelist()
     # Read SMTP client connections from Postfix logfile into pidDict
     # * SMTP client connection logs don't contain TLS evidence. Thus
     #   TLS connections logs have to be parsed alongside.
@@ -397,7 +397,7 @@ if __name__ == '__main__':
 
     if (len(tlsDomains) > 0 and op['postfixMap']):
         policyFileLines = postfixTlsPolicyRead()
-        postfixTlxPolicyWrite(policyFileLines)
+        postfixTlsPolicyWrite(policyFileLines)
         postmapTlsPolicy()
 
     if len(notlsDomains) > 0:
