@@ -391,9 +391,9 @@ if __name__ == '__main__':
                 for domain in pidDict[pid][relay]['domains']:
                     notlsDomains.add(domain)
 
-    op['summBody'] += "\n\nTotal separate server connections: %s\n" % relayConnCount
-    op['summBody'] += "noTLS separate server connections(abs): %s\n" % (relayConnCount-relayTLSCount)
-    op['summBody'] += "noTLS separate server connections(rel): %.2f%%\n" % ((relayConnCount-relayTLSCount)/float(relayConnCount)*100)
+    op['summBody'] += "\n\nTotal count of connections: %s\n" % relayConnCount
+    op['summBody'] += "Total count of noTLS connections: %s\n" % (relayConnCount-relayTLSCount)
+    op['summBody'] += "Percentage of noTLS connections: %.2f%%\n" % ((relayConnCount-relayTLSCount)/float(relayConnCount)*100)
 
     if (len(tlsDomains) > 0 and op['postfixMap']):
         policyFileLines = postfixTlsPolicyRead()
