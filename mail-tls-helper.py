@@ -5,15 +5,12 @@
 #  * alert postmasters of mailservers that don't support STARTTLS
 #
 # Author: doobry@systemli.org
-# Version: 0.7.1 [2017-02-19]
+# Version: 0.8.1 [2017-11-11]
 # License: GPL-3
 #
 # TODO:
-# * split things out into submodules: mail sending, postfix
-#   * maybe not? complicates installation of the script
 # * implement blacklist of domains/relays not to notify when no-tls (?)
 # * writer log parser and hash map creator for exim4
-# * restructure code into clases: options, sqlite, postfix, (exim4), sendmail
 # * make more things configurable via commandline:
 #   * interval between mails to postmasters
 
@@ -32,7 +29,7 @@ from email.Utils import COMMASPACE, formatdate
 import pprint
 
 name = "mail-tls-helper.py"
-version = "0.8.0"
+version = "0.8.1"
 
 alertTTL = 30
 

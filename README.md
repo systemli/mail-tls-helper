@@ -46,6 +46,8 @@ request* on Github.
 
 ## Changelog
 
+* 2017-11-11: version 0.8.1
+  * fix version number and update todo list in the script
 * 2017-11-11: version 0.8.0
   * restructured code, swap out all postfix related code into separate
     functions.
