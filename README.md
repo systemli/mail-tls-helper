@@ -46,6 +46,15 @@ request* on Github.
 
 ## Changelog
 
+* 2017-11-11: version 0.8.0
+  * restructured code, swap out all postfix related code into separate
+    functions.
+  * added new data structure 'relayDict' which can be filled by any
+    mta specific functions
+  * simplified the logic for parsing postfix logs
+  * added IPv6 localhost address ::1 to relay whitlist
+  * TLS domains are deleted from SQLite DB now
+  * fixed calculated numbers of unencrypted mails
 * 2017-06-04: version 0.7.3
   * add support for a relay whitelist
 * 2017-06-04: version 0.7.2
