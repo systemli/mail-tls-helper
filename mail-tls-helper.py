@@ -7,12 +7,6 @@
 # Author: doobry@systemli.org
 # Version: 0.9 [2018-07-18]
 # License: GPL-3
-#
-# TODO:
-# * implement blacklist of domains/relays not to notify when no-tls (?)
-# * writer log parser and hash map creator for exim4
-# * make more things configurable via commandline:
-#   * interval between mails to postmasters
 
 from __future__ import print_function
 import os
