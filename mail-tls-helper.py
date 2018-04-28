@@ -61,7 +61,7 @@ def parse_args():
                         help="run in debugging mode, don't do anything")
     parser.add_argument('-m', '--mode', choices=('postfix', ), default='postfix',
                         help='mode (currently only "postfix")')
-    parser.add_argument('-l', '--mail-log', type=str, dest='mail_logfile',
+    parser.add_argument('-l', '--mail-log', type=argparse.FileType('r'), dest='mail_logfile',
                         default='/var/log/mail.log.1', help='mail log file')
     parser.add_argument('-w', '--whitelist', type=str, dest='whitelist_filename',
                         help='optional file containing relay whitelist')
@@ -275,31 +275,30 @@ def postfixParseLog(logfile, whitelist):
 
     pidDict = defaultdict(pidFactory)
     lineCount = sentCount = tlsCount = 0
-    with open(logfile, "r") as f:
-        for line in f:
-            lineCount += 1
-            # search for SMTP client connections
-            m = regex_smtp.search(line)
-            if m:
-                relay = m.group('relay').lower()
-                if relay in whitelist:
-                    print_dbg("Skipping relay from whitelist: %s (smtp)" % relay)
-                    continue
-                domain = m.group('domain').lower()
-                pidDict[m.group('pid')][relay]['domains'].add(domain)
-                if m.group('status') == 'sent':
-                    pidDict[m.group('pid')][relay]['sentCount'] += 1
-                    sentCount += 1
+    for line in logfile:
+        lineCount += 1
+        # search for SMTP client connections
+        m = regex_smtp.search(line)
+        if m:
+            relay = m.group('relay').lower()
+            if relay in whitelist:
+                print_dbg("Skipping relay from whitelist: %s (smtp)" % relay)
                 continue
-            # search for TLS connections
-            m = regex_tls.search(line)
-            if m:
-                relay = m.group('relay').lower()
-                if relay in whitelist:
-                    print_dbg("Skipping relay from whitelist: %s (tls)" % relay)
-                    continue
-                tlsCount += 1
-                pidDict[m.group('pid')][relay]['tlsCount'] += 1
+            domain = m.group('domain').lower()
+            pidDict[m.group('pid')][relay]['domains'].add(domain)
+            if m.group('status') == 'sent':
+                pidDict[m.group('pid')][relay]['sentCount'] += 1
+                sentCount += 1
+            continue
+        # search for TLS connections
+        m = regex_tls.search(line)
+        if m:
+            relay = m.group('relay').lower()
+            if relay in whitelist:
+                print_dbg("Skipping relay from whitelist: %s (tls)" % relay)
+                continue
+            tlsCount += 1
+            pidDict[m.group('pid')][relay]['tlsCount'] += 1
 
     print_dbg("postfixParseLog: Processed lines: %s" % lineCount)
     print_dbg("postfixParseLog: Delivered messages: %s" % sentCount)
