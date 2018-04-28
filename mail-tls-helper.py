@@ -23,9 +23,9 @@ from collections import defaultdict
 from subprocess import call
 from subprocess import Popen, PIPE
 import smtplib
-from email.MIMEMultipart import MIMEMultipart
-from email.MIMEText import MIMEText
-from email.Utils import COMMASPACE, formatdate
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.utils import COMMASPACE, formatdate
 import pprint
 
 name = "mail-tls-helper.py"
@@ -278,7 +278,13 @@ def sendMail(sender, to, subject, text, server="/usr/sbin/sendmail"):
     else:
         if server == "/usr/sbin/sendmail":
             p = Popen([server, "-t", "-oi", "-f", sender], stdin=PIPE)
-            p.communicate(msg.as_string())
+            try:
+                # Python3
+                msg_data = msg.as_bytes()
+            except AttributeError:
+                # Python2
+                msg_data = msg.as_string()
+            p.communicate(msg_data)
         else:
             smtp = smtplib.SMTP(server)
             smtp.sendmail(sender, to, msg.as_string())
