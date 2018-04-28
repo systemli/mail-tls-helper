@@ -23,9 +23,9 @@ from collections import defaultdict
 from subprocess import call
 from subprocess import Popen, PIPE
 import smtplib
-from email.MIMEMultipart import MIMEMultipart
-from email.MIMEText import MIMEText
-from email.Utils import COMMASPACE, formatdate
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.utils import COMMASPACE, formatdate
 import pprint
 
 name = "mail-tls-helper.py"
