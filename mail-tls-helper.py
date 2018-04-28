@@ -278,7 +278,13 @@ def sendMail(sender, to, subject, text, server="/usr/sbin/sendmail"):
     else:
         if server == "/usr/sbin/sendmail":
             p = Popen([server, "-t", "-oi", "-f", sender], stdin=PIPE)
-            p.communicate(msg.as_string())
+            try:
+                # Python3
+                msg_data = msg.as_bytes()
+            except AttributeError:
+                # Python2
+                msg_data = msg.as_string()
+            p.communicate(msg_data)
         else:
             smtp = smtplib.SMTP(server)
             smtp.sendmail(sender, to, msg.as_string())
