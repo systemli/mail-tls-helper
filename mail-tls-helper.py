@@ -162,7 +162,7 @@ Postfix helper script that does the following:
   -O, --no-postmap             don't postmap(1) the Postfix TLS policy map file
   -d, --domain=name            set organization domain (default: %s)
   -f, --from=address           set sender address (default: %s)
-  -r, --rcpts=addressses       set summary mail rcpt addresses (default: %s)
+  -r, --rcpts=addresses        set summary mail rcpt addresses (default: %s)
 """ % (name, op['mode'], op['mailLog'], op['postfixMapFile'], op['sqliteDB'], op['domain'], op['from'], ','.join(op['rcpts'])), file=sys.stderr)
         sys.exit(0)
     elif op['printVersion']:
