@@ -47,8 +47,10 @@ def relayFactory():
         'domains': set(),
         'sentCount': 0,
         'sentCountTLS': 0,
+        'sentCountTor': 0,
         'tlsCount': 0,
         'isTLS': False,
+        'isTor': False,
         'tls_required_but_not_offered': False,
     }
 
@@ -302,6 +304,7 @@ def postfixParseLog(logfile, whitelist):
         # search for SMTP client connections
         m = regex_smtp.search(line)
         if m:
+            # a plain or a TOR connection
             relay = m.group('relay').lower()
             if relay in whitelist:
                 print_dbg("Skipping relay from whitelist: %s (smtp)" % relay)
@@ -309,6 +312,7 @@ def postfixParseLog(logfile, whitelist):
             domain = m.group('domain').lower()
             pidDict[m.group('pid')][relay]['domains'].add(domain)
             if m.group('status') == 'sent':
+                # The message was successfully delivered (not deferred, ...).
                 pidDict[m.group('pid')][relay]['sentCount'] += 1
             continue
         # search for TLS connections
@@ -332,7 +336,12 @@ def postfixParseLog(logfile, whitelist):
             # one relay of the domain.
             if old_relay['tls_required_but_not_offered']:
                 new_relay['tls_required_but_not_offered'] = True
-            if old_relay['tlsCount']:
+            if relay_name.endswith('.onion'):
+                # TOR peers are trusted by design due to their private onion key
+                print_dbg("Treating relay via TOR as trusted: %s (smtp)" % relay_name)
+                new_relay['sentCountTor'] += old_relay['sentCount']
+                new_relay['isTor'] = True
+            elif old_relay['tlsCount']:
                 new_relay['isTLS'] = True
                 if old_relay['sentCount']:
                     # At least one encrypted connection and one delivered message
@@ -346,10 +355,12 @@ def postfixParseLog(logfile, whitelist):
 
     sentCount = sum(relay['sentCount'] for relay in relayDict.values())
     tlsCount = sum(relay['sentCountTLS'] for relay in relayDict.values())
+    torCount = sum(relay['sentCountTor'] for relay in relayDict.values())
 
     print_dbg("postfixParseLog: Processed lines: %s" % lineCount)
     print_dbg("postfixParseLog: Delivered messages: %s" % sentCount)
     print_dbg("postfixParseLog: TLS connections: %s" % tlsCount)
+    print_dbg("postfixParseLog: TOR connections: %s" % torCount)
     return relayDict
 
 
@@ -377,13 +388,17 @@ if __name__ == '__main__':
     domainsTLS = set()
     domainsNoTLS = set()
     relaysMissingTLS = set()
-    sentCountTotal = sentCountTLS = 0
+    sentCountTotal = sentCountTLS = sentCountTor = 0
     for relay_name, relay in relayDict.items():
         sentCountTotal += relay['sentCount']
         sentCountTLS += relay['sentCountTLS']
+        sentCountTor += relay['sentCountTor']
         if relay['isTLS']:
             for domain in relay['domains']:
                 domainsTLS.add(domain)
+        elif relay['isTor']:
+            # nothing to be done
+            pass
         else:
             for domain in relay['domains']:
                 domainsNoTLS.add(domain)
@@ -395,12 +410,10 @@ if __name__ == '__main__':
 
     # print a summary
     summary_lines = []
-    insecure_count = sentCountTotal - sentCountTLS
+    insecure_count = sentCountTotal - sentCountTLS - sentCountTor
     summary_lines.append("Total count of sent messages:             %s" % sentCountTotal)
-    summary_lines.append("Total count of messages sent without TLS: %s"
-                         % (sentCountTotal - sentCountTLS))
-    summary_lines.append("Percentage of messages sent without TLS:  %.2f%%"
-                         % ((sentCountTotal - sentCountTLS) / float(sentCountTotal) * 100))
+    summary_lines.append("Total count of messages sent with TLS:    %s" % sentCountTLS)
+    summary_lines.append("Total count of messages sent with Tor:    %s" % sentCountTor)
     summary_lines.append("Total count of messages sent unencrypted: %s" % insecure_count)
     if sentCountTotal:
         summary_lines.append("Percentage of messages sent unencrypted:  %.2f%%"

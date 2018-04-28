@@ -76,3 +76,10 @@ class TestPostfixParser(TestBase):
         self.assertEqual(relay_dict, {
             'relay.example.org': _get_relay_stats(domains={'dest.example.org'},
                                                   sentCount=1, sentCountTLS=1, isTLS=True)})
+
+    def test_parse_sent_tor_count(self):
+        relay_dict = self.parse_postfix_log_from_assets('postfix_count_sent_with_tor.log')
+        self.assertRelayDictCounts(relay_dict, {'sentCount': 1, 'sentCountTor': 1})
+        self.assertEqual(relay_dict, {
+            'relay.example.onion': _get_relay_stats(domains={'dest.example.org'},
+                                                    sentCount=1, sentCountTor=1, isTor=True)})
