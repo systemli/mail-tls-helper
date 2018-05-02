@@ -198,14 +198,20 @@ def print_dbg_relay(relay, dictx):
 # Postfix TLS policy table functions
 def postfixTlsPolicyUpdate(domainsTLS, postfixMapFile, postMap):
     if os.path.isfile(postfixMapFile):
-        policyFileLines = [line.split()[0] for line in open(postfixMapFile, 'r')]
-        policyFile = open(postfixMapFile, 'a')
-        for domain in domainsTLS:
-            if domain not in policyFileLines:
-                print_dbg("Add domain '%s' to Postfix TLS policy map" % domain)
-                if not op['debug']:
-                    policyFile.write("%s encrypt\n" % domain)
-        policyFile.close()
+        existing_policy_domains = set()
+        with open(postfixMapFile, 'r') as in_file:
+            for line in in_file:
+                if line.strip():
+                    domain = line.strip().split()[0]
+                    existing_policy_domains.add(domain)
+        missing_policy_domains = domainsTLS.difference(existing_policy_domains)
+        if missing_policy_domains:
+            with open(postfixMapFile, 'a') as policyFile:
+                for domain in missing_policy_domains:
+                    print_dbg("Add domain '%s' to Postfix TLS policy map" % domain)
+                    if not op['debug']:
+                        policyFile.write("%s encrypt\n" % domain)
+
 
     if postMap and not op['debug']:
         call(["postmap", postfixMapFile])
