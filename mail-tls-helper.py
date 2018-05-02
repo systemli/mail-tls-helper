@@ -19,8 +19,7 @@ import os
 import re
 import datetime
 import sqlite3
-import getopt
-import sys
+import argparse
 from collections import defaultdict
 from subprocess import call
 from subprocess import Popen, PIPE
@@ -33,9 +32,6 @@ name = "mail-tls-helper.py"
 version = "0.8.1"
 
 alertTTL = 30
-
-global op
-op = {}
 
 
 # Structure for pidDict
@@ -54,80 +50,58 @@ def pidFactory():
 
 
 # Parse options
-def options(args):
-    op['printHelp'] = False
-    op['printVersion'] = False
+def parse_args():
+    description = '''Postfix helper script that does the following:
+ * make TLS mandatory for outgoing mail wherever possible and
+ * optionally alert postmasters of mailservers that do not support STARTTLS'''
+    parser = argparse.ArgumentParser(prog=name, description=description,
+                                     formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument('--version', action='version', version='%(prog)s {}'.format(version))
+    parser.add_argument('--debug', action='store_true',
+                        help="run in debugging mode, don't do anything")
+    parser.add_argument('-m', '--mode', choices=('postfix', ), default='postfix',
+                        help='mode (currently only "postfix")')
+    parser.add_argument('-l', '--mail-log', type=argparse.FileType('r'), dest='mail_logfile',
+                        default='/var/log/mail.log.1', help='mail log file')
+    parser.add_argument('-w', '--whitelist', type=str, dest='whitelist_filename',
+                        help='optional file containing relay whitelist')
+    parser.add_argument('-p', '--postfix-map-file', dest='postfix_map_file', type=str,
+                        default='/etc/postfix/tls_policy', help='Postfix TLS policy map file')
+    parser.add_argument('-s', '--sqlite-db', dest='sqlite_db',
+                        default='/var/lib/mail-tls-helper/notls.sqlite',
+                        help='SQLite DB file for internal state storage (created if missing)')
+    parser.add_argument('-a', '--alerts', dest='send_alerts', action='store_true',
+                        help=('send out alert mails to the "postmaster" addresses of external '
+                              'mail domains lacking TLS support'))
+    parser.add_argument('-S', '--no-summary', dest='send_summary', action='store_false',
+                        help='do not send out summary mail')
+    parser.add_argument('-P', '--no-postfix-map', dest='use_postfix_map', action='store_false',
+                        help='do not update the Postfix TLS policy map file')
+    parser.add_argument('-O', '--no-postmap', dest='run_postmap', action='store_false',
+                        help='do not "postmap(1)" the Postfix TLS policy map file')
+    parser.add_argument('-d', '--domain', type=str, default='example.org',
+                        help=('the organization domain is used for defaults of "-r" and "-f" and '
+                              'within the alert mail text body'))
+    parser.add_argument('-f', '--from', type=str, dest='from_address',
+                        help='sender/from mail address (default: "admin@DOMAIN", see "--domain")')
+    parser.add_argument('-r', '--rcpts', action='append', dest='recipients', help=(
+        'summary mail recipient address (default: "admin@DOMAIN", see "--domain")'))
 
-    try:
-        opts, args = getopt.getopt(args, 'ad:f:hl:m:Op:Pr:s:SVw:', [
-            'alerts', 'domain=', 'debug', 'from=', 'help', 'mail-log=', 'mode=', 'no-postmap',
-            'postfix-map-file=', 'no-postfix-map', 'rcpts=', 'sqlite-db=', 'no-summary', 'version',
-            'whitelist='])
-    except getopt.error as exc:
-        print("%s: %s, try -h for a list of all the options" % (name, str(exc)), file=sys.stderr)
-        sys.exit(255)
-
-    for opt, arg in opts:
-        if opt in ['-h', '--help']:
-            op['printHelp'] = True
-            break
-        elif opt in ['-V', '--version']:
-            op['printVersion'] = True
-            break
-        elif opt in ['-m', '--mode']:
-            if (arg == 'postfix'):
-                op['mode'] = arg
-            else:
-                print("%s: unknon mode %s, try -h for a list of all the options" % (name, arg),
-                      file=sys.stderr)
-                sys.exit(255)
-        elif opt in ['--debug']:
-            op['debug'] = True
-        elif opt in ['-l', '--mail-log']:
-            op['mailLog'] = arg
-        elif opt in ['-w', '--whitelist']:
-            op['whitelist'] = arg
-        elif opt in ['-P', '--no-postfix-map']:
-            op['postfixMap'] = False
-        elif opt in ['-p', '--postfix-map-file']:
-            op['postfixMapFile'] = arg
-        elif opt in ['-O', '--no-postmap']:
-            op['postMap'] = False
-        elif opt in ['-s', '--sqlite-db']:
-            op['sqliteDB'] = arg
-        elif opt in ['-a', '--alerts']:
-            op['alerts'] = True
-        elif opt in ['-S', '--no-summary']:
-            op['summary'] = False
-        elif opt in ['-d', '--domain']:
-            op['domain'] = arg
-        elif opt in ['-f', '--from']:
-            op['from'] = arg
-        elif opt in ['-r', '--rcpts']:
-            op['rcpts'] = arg.split(',')
-
-    # Set options to defaults if not set yet
-    op['debug'] = op.get('debug', False)
-    op['mode'] = op.get('mode', "postfix")
-    op['mailLog'] = op.get('mailLog', "/var/log/mail.log.1")
-    op['whitelist'] = op.get('whitelist', False)
-    op['postfixMap'] = op.get('postfixMap', True)
-    op['postfixMapFile'] = op.get('postfixMapFile', "/etc/postfix/tls_policy")
-    op['postMap'] = op.get('postMap', True)
-    op['sqliteDB'] = op.get('sqliteDB', "/var/lib/mail-tls-helper/notls.sqlite")
-    op['alerts'] = op.get('alerts', False)
-    op['summary'] = op.get('summary', True)
-    op['domain'] = op.get('domain', "example.org")
-    op['from'] = op.get('from', "admin@%s" % op['domain'])
-    op['rcpts'] = op.get('rcpts', ["admin@%s" % op['domain']])
-    op['summSubj'] = op.get('sumSubj', "[%s] mail-tls-helper summary" % (os.uname()[1]))
-    op['summBody'] = op.get('sumSubj', "Summary mail by mail-tls-helper on %s" % (os.uname()[1]))
-    op['alertSubj'] = op.get('alertSubj',
-                             "Please add TLS support to the mailservers for 'XDOMAINX'")
-    op['alertBody'] = op.get('alertBody', """Hello postmaster for mail domain 'XDOMAINX',
+    args = parser.parse_args()
+    # set some non-trivial defaults
+    if not args.from_address:
+        args.from_address = 'admin@{}'.format(args.domain)
+    if not args.recipients:
+        args.recipients = ['admin@{}'.format(args.domain)]
+    # add details that are currently not configurable
+    # This is a slight abuse of the arguments namespace, but this should be acceptable.
+    args.summary_subject = '[{}] mail-tls-helper summary'.format(os.uname()[1])
+    args.summary_start = 'Summary mail by mail-tls-helper on {}'.format(os.uname()[1])
+    args.alert_subject = "Please add TLS support to the mailservers for 'XDOMAINX'"
+    args.alert_body = """Hello postmaster for mail domain 'XDOMAINX',
 
 Your mail server for 'XDOMAINX' is among the last mail servers,
-that still don't support TLS transport encryption for incoming messages.
+that still do not support TLS transport encryption for incoming messages.
 
 
 In order to make the internet a safer place, we intend to disable
@@ -139,45 +113,15 @@ to your mail setup.
 See RFC 3207 for further information: https://tools.ietf.org/html/rfc3207
 
 In case of any questions, don't hesitate to contact us at
-%s
+{from_address}
 
 Kind regards,
-%s sysadmins
-""" % (op['from'], op['domain']))
-
-    if op['printHelp']:
-        print("usage: %s [options]" % name, file=sys.stderr)
-        print("""
-Postfix helper script that does the following:
- * make TLS mandatory for outgoing mail wherever possible and
- * optionally alert postmasters of mailservers that don't support STARTTLS
-
-%s options:
-  -h, --help                   display this help message
-  -V, --version                display version number
-      --debug                  run in debugging mode, don't do anything
-  -m, --mode=[postfix]         set mode (default: %s, no others supported yet)
-  -l, --mail-log=file          set mail log file (default: %s)
-  -w, --whitelist=file         file containing relay whitelist
-  -p, --postfix-map-file=file  set Postfix TLS policy map file (default: %s)
-  -s, --sqlite-db=file         set SQLite DB file (default: %s)
-  -a, --alerts                 send out alert mails
-  -S, --no-summary             don't send out summary mail
-  -P, --no-postfix-map         don't update the Postfix TLS policy map file
-  -O, --no-postmap             don't postmap(1) the Postfix TLS policy map file
-  -d, --domain=name            set organization domain (default: %s)
-  -f, --from=address           set sender address (default: %s)
-  -r, --rcpts=addresses        set summary mail rcpt addresses (default: %s)
-""" % (name, op['mode'], op['mailLog'], op['postfixMapFile'], op['sqliteDB'], op['domain'],
-            op['from'], ','.join(op['rcpts'])), file=sys.stderr)
-        sys.exit(0)
-    elif op['printVersion']:
-        print("%s %s" % (name, version), file=sys.stderr)
-        sys.exit(0)
+{domain} sysadmins""".format(from_address=args.from_address, domain=args.domain)
+    return args
 
 
 def print_dbg(msg):
-    if op['debug']:
+    if args.debug:
         print("DEBUG: %s" % msg)
 
 
@@ -209,15 +153,14 @@ def postfixTlsPolicyUpdate(domainsTLS, postfixMapFile, postMap):
             with open(postfixMapFile, 'a') as policyFile:
                 for domain in missing_policy_domains:
                     print_dbg("Add domain '%s' to Postfix TLS policy map" % domain)
-                    if not op['debug']:
+                    if not args.debug:
                         policyFile.write("%s encrypt\n" % domain)
 
-
-    if postMap and not op['debug']:
+    if postMap and not args.debug:
         call(["postmap", postfixMapFile])
 
 
-def notlsProcess(domainsTLS, domainsNoTLS, sqliteDB):
+def notlsProcess(domainsTLS, domainsNoTLS, sqliteDB, summary_lines):
     domainDBNoTLS = {}
     if os.path.isfile(sqliteDB):
         conn = sqlite3.connect(sqliteDB)
@@ -231,7 +174,7 @@ def notlsProcess(domainsTLS, domainsNoTLS, sqliteDB):
                 'alertDate': item[2],
             }
 
-    op['summBody'] += "\nList of domains with no-TLS connections:"
+    summary_lines.append("List of domains with no-TLS connections:")
     conn = sqlite3.connect(sqliteDB)
     c = conn.cursor()
     c.execute('CREATE TABLE IF NOT EXISTS notlsDomains '
@@ -239,7 +182,7 @@ def notlsProcess(domainsTLS, domainsNoTLS, sqliteDB):
     for domain in domainsTLS:
         if domain in domainDBNoTLS:
             print_dbg("Delete domain %s from sqlite DB" % domain)
-            if not op['debug']:
+            if not args.debug:
                 c.execute('''DELETE FROM notlsDomains WHERE domain = ?;''', [domain])
     for domain in domainsNoTLS:
         if domain in domainsTLS:
@@ -247,7 +190,7 @@ def notlsProcess(domainsTLS, domainsNoTLS, sqliteDB):
             # for the same domain were encrypted. TLS will be mandatory
             # in the future anyway for this domain.
             continue
-        op['summBody'] += "\n * %s" % (domain)
+        summary_lines.append(" * %s" % (domain))
         if domain in domainDBNoTLS:
             # send alerts every <alertTTL> days
             slist = domainDBNoTLS[domain]['alertDate'].split('-')
@@ -257,21 +200,23 @@ def notlsProcess(domainsTLS, domainsNoTLS, sqliteDB):
                 continue
             else:
                 print_dbg("Update domain %s in sqlite DB" % domain)
-                if not op['debug']:
+                if not args.debug:
                     c.execute(
                         'UPDATE notlsDomains SET alertCount=?, alertDate=? WHERE domain = ?;',
                         (domainDBNoTLS[domain]['alertCount'] + 1, datetime.date.today(), domain))
         else:
             print_dbg("Insert domain %s into sqlite DB" % domain)
-            if not op['debug']:
+            if not args.debug:
                 c.execute('INSERT INTO notlsDomains (domain, alertCount, alertDate) '
                           'VALUES (?,?,?);', (domain, 1, datetime.date.today()))
-        if op['alerts']:
-            op['summBody'] += " [sent alert mail]"
-            sendMail(op['from'], ['postmaster@'+domain],
-                     op['alertSubj'].replace('XDOMAINX', domain),
-                     op['alertBody'].replace('XDOMAINX', domain))
-    op['summBody'] += "\n\n"
+        if args.send_alerts:
+            recipient = 'postmaster@{}'.format(domain)
+            summary_lines.append(" [sent alert mail: {}]".format(recipient))
+            sendMail(args.from_address, [recipient],
+                     args.alert_subject.replace('XDOMAINX', domain),
+                     args.alert_body.replace('XDOMAINX', domain))
+    summary_lines.append("")
+    summary_lines.append("")
     conn.commit()
     conn.close()
 
@@ -295,7 +240,7 @@ def sendMail(sender, to, subject, text, server="/usr/sbin/sendmail"):
     msg['Date'] = formatdate(localtime=True)
     msg['Subject'] = subject
     msg.attach(MIMEText(text))
-    if op['debug']:
+    if args.debug:
         print_dbg("Mail: %s" % msg.as_string())
     else:
         if server == "/usr/sbin/sendmail":
@@ -335,31 +280,30 @@ def postfixParseLog(logfile, whitelist):
 
     pidDict = defaultdict(pidFactory)
     lineCount = sentCount = tlsCount = 0
-    with open(logfile, "r") as f:
-        for line in f:
-            lineCount += 1
-            # search for SMTP client connections
-            m = regex_smtp.search(line)
-            if m:
-                relay = m.group('relay').lower()
-                if relay in whitelist:
-                    print_dbg("Skipping relay from whitelist: %s (smtp)" % relay)
-                    continue
-                domain = m.group('domain').lower()
-                pidDict[m.group('pid')][relay]['domains'].add(domain)
-                if m.group('status') == 'sent':
-                    pidDict[m.group('pid')][relay]['sentCount'] += 1
-                    sentCount += 1
+    for line in logfile:
+        lineCount += 1
+        # search for SMTP client connections
+        m = regex_smtp.search(line)
+        if m:
+            relay = m.group('relay').lower()
+            if relay in whitelist:
+                print_dbg("Skipping relay from whitelist: %s (smtp)" % relay)
                 continue
-            # search for TLS connections
-            m = regex_tls.search(line)
-            if m:
-                relay = m.group('relay').lower()
-                if relay in whitelist:
-                    print_dbg("Skipping relay from whitelist: %s (tls)" % relay)
-                    continue
-                tlsCount += 1
-                pidDict[m.group('pid')][relay]['tlsCount'] += 1
+            domain = m.group('domain').lower()
+            pidDict[m.group('pid')][relay]['domains'].add(domain)
+            if m.group('status') == 'sent':
+                pidDict[m.group('pid')][relay]['sentCount'] += 1
+                sentCount += 1
+            continue
+        # search for TLS connections
+        m = regex_tls.search(line)
+        if m:
+            relay = m.group('relay').lower()
+            if relay in whitelist:
+                print_dbg("Skipping relay from whitelist: %s (tls)" % relay)
+                continue
+            tlsCount += 1
+            pidDict[m.group('pid')][relay]['tlsCount'] += 1
 
     print_dbg("postfixParseLog: Processed lines: %s" % lineCount)
     print_dbg("postfixParseLog: Delivered messages: %s" % sentCount)
@@ -397,14 +341,15 @@ regex_exim4_smtp = re.compile(
 # Main function
 if __name__ == '__main__':
     # process commandline options
-    options(sys.argv[1:])
+    # TODO: remove the ugly implicit exposure of this variable to the other function
+    args = parse_args()
 
     # read in the whitelist
-    whitelist = readWhitelist(op['whitelist'])
+    whitelist = readWhitelist(args.whitelist_filename)
 
     # fill the relayDict by parsing mail logs
-    if op['mode'] == 'postfix':
-        relayDict = postfixParseLog(op['mailLog'], whitelist)
+    if args.mode == 'postfix':
+        relayDict = postfixParseLog(args.mail_logfile, whitelist)
 
     # fill domainsTLS and domainsNoTLS from relayDict
     domainsTLS = set()
@@ -421,21 +366,21 @@ if __name__ == '__main__':
                 domainsNoTLS.add(domain)
 
     # print a summary
-    op['summBody'] += "\n\n"
-    op['summBody'] += ("Total count of sent messages:             %s\n"
-                       % sentCountTotal)
-    op['summBody'] += ("Total count of messages sent without TLS: %s\n"
-                       % (sentCountTotal - sentCountTLS))
-    op['summBody'] += ("Percentage of messages sent without TLS:  %.2f%%\n"
-                       % ((sentCountTotal - sentCountTLS) / float(sentCountTotal) * 100))
+    summary_lines = []
+    summary_lines.append("Total count of sent messages:             %s" % sentCountTotal)
+    summary_lines.append("Total count of messages sent without TLS: %s"
+                         % (sentCountTotal - sentCountTLS))
+    summary_lines.append("Percentage of messages sent without TLS:  %.2f%%"
+                         % ((sentCountTotal - sentCountTLS) / float(sentCountTotal) * 100))
 
     # update the SQLite database with noTLS domains
     if len(domainsNoTLS) > 0:
-        notlsProcess(domainsTLS, domainsNoTLS, op['sqliteDB'])
+        notlsProcess(domainsTLS, domainsNoTLS, args.sqlite_db, summary_lines)
 
     # update the TLS policy map
-    if (op['mode'] == 'postfix') and op['postfixMap'] and (len(domainsTLS) > 0):
-        postfixTlsPolicyUpdate(domainsTLS, op['postfixMapFile'], op['postMap'])
+    if (args.mode == 'postfix') and args.use_postfix_map and (len(domainsTLS) > 0):
+        postfixTlsPolicyUpdate(domainsTLS, args.postfix_map_file, args.run_postmap)
 
-    if (len(domainsNoTLS) > 0) and op['summary']:
-        sendMail(op['from'], op['rcpts'], op['summSubj'], op['summBody'])
+    if (len(domainsNoTLS) > 0) and args.send_summary:
+        summary_text = args.summary_start + "\n\n" + "\n".join(summary_lines)
+        sendMail(args.from_address, args.recipients, args.summary_subject, summary_text)
