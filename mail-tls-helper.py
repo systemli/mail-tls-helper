@@ -42,6 +42,7 @@ def relayFactory():
         'sentCountTLS': 0,
         'tlsCount': 0,
         'isTLS': False,
+        'tls_required_but_not_offered': False,
     }
 
 
@@ -174,6 +175,7 @@ def notlsProcess(domainsTLS, domainsNoTLS, sqliteDB, summary_lines):
                 'alertDate': item[2],
             }
 
+    summary_lines.append("")
     summary_lines.append("List of domains with no-TLS connections:")
     conn = sqlite3.connect(sqliteDB)
     c = conn.cursor()
@@ -266,6 +268,9 @@ def postfixParseLog(logfile, whitelist):
                             r"status=(?P<status>[a-z]+)")
     regex_tls = re.compile(r" postfix/smtp\[(?P<pid>[0-9]+)\]: .*TLS connection established to "
                            r"(?P<relay>[\w\-\.]+)\[[0-9A-Fa-f\.:]+\]:[0-9]{1,5}")
+    regex_tls_missing = re.compile(r" postfix/smtp\[(?P<pid>[0-9]+)\]: (?P<msgid>[0-9A-F]+): "
+                                   r"TLS is required, but was not offered by host "
+                                   r"(?P<relay>[\w\-\.]+)\[[0-9A-Fa-f\.:]+\]")
 
     # Read SMTP client connections from Postfix logfile into pidDict
     # * SMTP client connection logs don't contain TLS evidence. Thus TLS connections logs have to
@@ -278,10 +283,16 @@ def postfixParseLog(logfile, whitelist):
     # * What we do:
     #   * Pair PID and relay, write stats for that pair into pidDict[relay]
 
+    relayDict = defaultdict(relayFactory)
     pidDict = defaultdict(pidFactory)
     lineCount = sentCount = tlsCount = 0
     for line in logfile:
         lineCount += 1
+        m = regex_tls_missing.search(line)
+        if m:
+            relay = m.group('relay').lower()
+            pidDict[m.group('pid')][relay]['tls_required_but_not_offered'] = True
+            continue
         # search for SMTP client connections
         m = regex_smtp.search(line)
         if m:
@@ -310,14 +321,16 @@ def postfixParseLog(logfile, whitelist):
     print_dbg("postfixParseLog: TLS connections: %s" % tlsCount)
 
     # Transform pidDict into relayDict
-    relayDict = defaultdict(relayFactory)
     for pid in pidDict:
         # optional PID output: print_dbg_pid(pid, pidDict[pid])
         for relay in pidDict[pid]:
             for x in pidDict[pid][relay]['domains']:
                 relayDict[relay]['domains'].add(x)
             relayDict[relay]['sentCount'] += pidDict[pid][relay]['sentCount']
-
+            # "tls_required_but_not_offered" is set, if such a message was encountered for at least
+            # one relay of the domain.
+            if pidDict[pid][relay]['tls_required_but_not_offered']:
+                relayDict[relay]['tls_required_but_not_offered'] = True
             if (pidDict[pid][relay]['tlsCount'] > 0) and (pidDict[pid][relay]['sentCount'] > 0):
                 # At least one encrypted connection and one delivered message
                 relayDict[relay]['sentCountTLS'] += pidDict[pid][relay]['sentCount']
@@ -354,6 +367,7 @@ if __name__ == '__main__':
     # fill domainsTLS and domainsNoTLS from relayDict
     domainsTLS = set()
     domainsNoTLS = set()
+    relaysMissingTLS = set()
     sentCountTotal = sentCountTLS = 0
     for relay in relayDict:
         sentCountTotal += relayDict[relay]['sentCount']
@@ -364,6 +378,8 @@ if __name__ == '__main__':
         else:
             for domain in relayDict[relay]['domains']:
                 domainsNoTLS.add(domain)
+        if relayDict[relay]['tls_required_but_not_offered']:
+            relaysMissingTLS.add(relay)
 
     # print a summary
     summary_lines = []
@@ -372,6 +388,18 @@ if __name__ == '__main__':
                          % (sentCountTotal - sentCountTLS))
     summary_lines.append("Percentage of messages sent without TLS:  %.2f%%"
                          % ((sentCountTotal - sentCountTLS) / float(sentCountTotal) * 100))
+    if relaysMissingTLS:
+        summary_lines.append("")
+        summary_lines.append("Some domains are configured to require TLS, "
+                             "but their relays did not offer StartTLS:")
+        for relay in sorted(relaysMissingTLS):
+            if relayDict[relay]['domains']:
+                summary_lines.append(" * MX {}:".format(relay))
+                for domain in relayDict[relay]['domains']:
+                    summary_lines.append("   * %s" % domain)
+            else:
+                # Sadly the "TLS required" message only includes the relay name (no mail domains).
+                summary_lines.append(" * MX {} (no related mail domains known)".format(relay))
 
     # update the SQLite database with noTLS domains
     if len(domainsNoTLS) > 0:
