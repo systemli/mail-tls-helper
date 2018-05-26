@@ -386,8 +386,9 @@ if __name__ == '__main__':
     summary_lines.append("Total count of sent messages:             %s" % sentCountTotal)
     summary_lines.append("Total count of messages sent without TLS: %s"
                          % (sentCountTotal - sentCountTLS))
-    summary_lines.append("Percentage of messages sent without TLS:  %.2f%%"
-                         % ((sentCountTotal - sentCountTLS) / float(sentCountTotal) * 100))
+    if sentCountTotal > 0:
+        summary_lines.append("Percentage of messages sent without TLS:  %.2f%%"
+                             % ((sentCountTotal - sentCountTLS) / float(sentCountTotal) * 102))
     if relaysMissingTLS:
         summary_lines.append("")
         summary_lines.append("Some domains are configured to require TLS, "
