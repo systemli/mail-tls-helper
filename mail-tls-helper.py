@@ -173,22 +173,25 @@ def postfixTlsPolicyUpdate(domainsTLS, postfixMapFile, postMap):
         call(["postmap", postfixMapFile])
 
 
-def notlsProcess(domainsTLS, domainsNoTLS, sqliteDB, summary_lines):
-    domainDBNoTLS = {}
+def notlsProcess(domainsTLS, domainsNoTLS, sqliteDB):
+    """ update entries of non-TLS domains in the sqlite database and send alerts if requested
+
+    The set of domains, whose postmasters are eligible for being notified, is returned.
+    """
     if os.path.isfile(sqliteDB):
         conn = sqlite3.connect(sqliteDB)
         c = conn.cursor()
         c.execute('''SELECT * FROM notlsDomains;''')
         rows = c.fetchall()
         conn.close()
-        for item in rows:
-            domainDBNoTLS[item[0]] = {
-                'alertCount': item[1],
-                'alertDate': item[2],
-            }
+        domainDBNoTLS = {domain: {'alertCount': alert_count, 'alertDate': alert_date}
+                         for domain, alert_count, alert_date in rows}
+    else:
+        domainDBNoTLS = {}
 
-    summary_lines.append("")
-    summary_lines.append("List of domains with no-TLS connections:")
+    # The set of mail domains whose postmasters could be notified now due to the missing TLS
+    # connection. Only domains that were not alerted since <ALERT_TTL> are added to this set.
+    alert_candidate_domains = set()
     conn = sqlite3.connect(sqliteDB)
     c = conn.cursor()
     c.execute('CREATE TABLE IF NOT EXISTS notlsDomains '
@@ -201,7 +204,6 @@ def notlsProcess(domainsTLS, domainsNoTLS, sqliteDB, summary_lines):
     now = datetime.datetime.now()
     now_string = now.strftime(DB_DATE_FORMAT)
     for domain in domainsNoTLS:
-        summary_lines.append(" * %s" % (domain))
         if domain in domainDBNoTLS:
             # We have seen this domain before.
             # Determine if another alert should be sent (every <ALERT_TTLD> days).
@@ -213,29 +215,23 @@ def notlsProcess(domainsTLS, domainsNoTLS, sqliteDB, summary_lines):
                 print_dbg("Failed to parse date string from database: {}"
                           .format(domainDBNoTLS[domain]['alertDate']))
                 last_alert_date = None
-            if last_alert_date + ALERT_TTL <= now:
-                continue
-            else:
+            if last_alert_date + ALERT_TTL > now:
+                # The latest alert is older than ALERT_TTL.
+                alert_candidate_domains.add(domain)
                 print_dbg("Update domain %s in sqlite DB" % domain)
                 if not DEBUG_MODE_ENABLED:
                     c.execute(
                         'UPDATE notlsDomains SET alertCount=?, alertDate=? WHERE domain = ?;',
                         (domainDBNoTLS[domain]['alertCount'] + 1, now_string, domain))
         else:
+            alert_candidate_domains.add(domain)
             print_dbg("Insert domain %s into sqlite DB" % domain)
             if not DEBUG_MODE_ENABLED:
                 c.execute('INSERT INTO notlsDomains (domain, alertCount, alertDate) '
                           'VALUES (?,?,?);', (domain, 1, now_string))
-        if args.send_alerts:
-            recipient = 'postmaster@{}'.format(domain)
-            summary_lines.append(" [sent alert mail: {}]".format(recipient))
-            sendMail(args.from_address, [recipient],
-                     args.alert_subject.replace('XDOMAINX', domain),
-                     args.alert_body.replace('XDOMAINX', domain))
-    summary_lines.append("")
-    summary_lines.append("")
     conn.commit()
     conn.close()
+    return alert_candidate_domains
 
 
 def readWhitelist(wlfile):
@@ -421,7 +417,19 @@ if __name__ == '__main__':
 
     # update the SQLite database with noTLS domains
     if len(domainsNoTLS) > 0:
-        notlsProcess(domainsTLS, domainsNoTLS, args.sqlite_db, summary_lines)
+        alertable_domains = notlsProcess(domainsTLS, domainsNoTLS, args.sqlite_db)
+        summary_lines.append("")
+        summary_lines.append("List of domains with no-TLS connections:")
+        for domain in sorted(domainsNoTLS):
+            summary_lines.append(" * %s" % (domain))
+            if args.send_alerts and (domain in alertable_domains):
+                recipient = 'postmaster@{}'.format(domain)
+                summary_lines.append(" [sent alert mail: {}]".format(recipient))
+                sendMail(args.from_address, [recipient],
+                         args.alert_subject.replace('XDOMAINX', domain),
+                         args.alert_body.replace('XDOMAINX', domain))
+        summary_lines.append("")
+        summary_lines.append("")
 
     # update the TLS policy map
     if (args.mode == 'postfix') and args.use_postfix_map and (len(domainsTLS) > 0):
