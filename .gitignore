@@ -2,3 +2,7 @@ mail.log*
 notls.sqlite
 tls_policy
 whitelist
+
+*.pyc
+*.sw[op]
+__pycache__/
