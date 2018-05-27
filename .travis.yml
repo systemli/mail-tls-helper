@@ -1,0 +1,13 @@
+---
+addons:
+  apt:
+    packages:
+      - python-flake8
+      - python3-flake8
+script:
+  # the travis environment is a bit outdated - thus we need to run flake8 manually
+  # (instead of "make lint")
+  - which flake8
+  - python /usr/bin/flake8 --max-line-length=99 mail-tls-helper.py tests
+  - python3 /usr/bin/flake8 --max-line-length=99 --ignore=N802,N803,N806 mail-tls-helper.py tests
+  - make test
