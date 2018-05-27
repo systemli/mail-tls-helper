@@ -1,0 +1,4 @@
+# mail was sent
+May 27 06:47:35 mail-postfix postfix/smtp[920]: F1F0A200CB: to=<admin@dest.example.org>, orig_to=<real-admin@dest.example.org>, relay=relay.example.org[31.0.0.0]:25, delay=4.2, delays=3.4/0.01/0.39/0.38, dsn=2.0.0, status=sent (250 2.0.0 Ok: queued as D08D220196)
+# mail was deferred
+May 27 06:47:37 mail-postfix postfix/smtp[934]: 9EFB9201AB: to=<target-failure@dest.example.org>, relay=relay.example.org[31.0.0.0]:25, delay=28722, delays=28680/32/2.7/7.6, dsn=4.7.1, status=deferred (host relay.example.org[31.0.0.0] said: 450 4.7.1 temporarily suspended, please try again later. (in reply to RCPT TO command))
