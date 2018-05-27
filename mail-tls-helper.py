@@ -33,6 +33,8 @@ version = "0.8.1"
 
 alertTTL = 30
 
+LOCALHOST_WHITELIST = {'localhost', '127.0.0.1', '::1'}
+
 
 # Structure for pidDict
 def relayFactory():
@@ -234,8 +236,7 @@ def readWhitelist(wlfile):
         wlfile.close()
     else:
         parsed_whitelist = set()
-    # always add localhost to whitelist
-    return parsed_whitelist.union({'localhost', '127.0.0.1', '::1'})
+    return parsed_whitelist
 
 
 def sendMail(sender, to, subject, text, server="/usr/sbin/sendmail"):
@@ -362,7 +363,7 @@ if __name__ == '__main__':
     args = parse_args()
 
     # read in the whitelist
-    whitelist = readWhitelist(args.whitelist)
+    whitelist = readWhitelist(args.whitelist).union(LOCALHOST_WHITELIST)
 
     # fill the relayDict by parsing mail logs
     if args.mode == 'postfix':
