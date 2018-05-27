@@ -196,11 +196,6 @@ def notlsProcess(domainsTLS, domainsNoTLS, sqliteDB, summary_lines):
             if not DEBUG_MODE_ENABLED:
                 c.execute('''DELETE FROM notlsDomains WHERE domain = ?;''', [domain])
     for domain in domainsNoTLS:
-        if domain in domainsTLS:
-            # ignore individual no-TLS connections when other connections
-            # for the same domain were encrypted. TLS will be mandatory
-            # in the future anyway for this domain.
-            continue
         summary_lines.append(" * %s" % (domain))
         if domain in domainDBNoTLS:
             # send alerts every <alertTTL> days
@@ -388,6 +383,9 @@ if __name__ == '__main__':
                 domainsNoTLS.add(domain)
         if relayDict[relay]['tls_required_but_not_offered']:
             relaysMissingTLS.add(relay)
+    # Ignore individual no-TLS connections if other connections for the same domain were encrypted.
+    # TLS will be mandatory in the future anyway for this domain.
+    domainsNoTLS.difference_update(domainsTLS)
 
     # print a summary
     summary_lines = []
