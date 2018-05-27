@@ -292,11 +292,8 @@ def postfixParseLog(logfile, whitelist):
     # * What we do:
     #   * Pair PID and relay, write stats for that pair into pidDict[relay]
 
-    relayDict = defaultdict(relayFactory)
     pidDict = defaultdict(pidFactory)
-    lineCount = sentCount = tlsCount = 0
-    for line in logfile:
-        lineCount += 1
+    for lineCount, line in enumerate(logfile, 1):
         m = regex_tls_missing.search(line)
         if m:
             relay = m.group('relay').lower()
@@ -313,7 +310,6 @@ def postfixParseLog(logfile, whitelist):
             pidDict[m.group('pid')][relay]['domains'].add(domain)
             if m.group('status') == 'sent':
                 pidDict[m.group('pid')][relay]['sentCount'] += 1
-                sentCount += 1
             continue
         # search for TLS connections
         m = regex_tls.search(line)
@@ -321,36 +317,39 @@ def postfixParseLog(logfile, whitelist):
             relay = m.group('relay').lower()
             if relay in whitelist:
                 print_dbg("Skipping relay from whitelist: %s (tls)" % relay)
-                continue
-            tlsCount += 1
-            pidDict[m.group('pid')][relay]['tlsCount'] += 1
-
-    print_dbg("postfixParseLog: Processed lines: %s" % lineCount)
-    print_dbg("postfixParseLog: Delivered messages: %s" % sentCount)
-    print_dbg("postfixParseLog: TLS connections: %s" % tlsCount)
+            else:
+                pidDict[m.group('pid')][relay]['tlsCount'] += 1
 
     # Transform pidDict into relayDict
+    relayDict = defaultdict(relayFactory)
     for pid in pidDict:
         # optional PID output: print_dbg_pid(pid, pidDict[pid])
-        for relay in pidDict[pid]:
-            for x in pidDict[pid][relay]['domains']:
-                relayDict[relay]['domains'].add(x)
-            relayDict[relay]['sentCount'] += pidDict[pid][relay]['sentCount']
+        for relay_name, old_relay in pidDict[pid].items():
+            new_relay = relayDict[relay_name]
+            new_relay['domains'].update(old_relay['domains'])
+            new_relay['sentCount'] += old_relay['sentCount']
             # "tls_required_but_not_offered" is set, if such a message was encountered for at least
             # one relay of the domain.
-            if pidDict[pid][relay]['tls_required_but_not_offered']:
-                relayDict[relay]['tls_required_but_not_offered'] = True
-            if (pidDict[pid][relay]['tlsCount'] > 0) and (pidDict[pid][relay]['sentCount'] > 0):
-                # At least one encrypted connection and one delivered message
-                relayDict[relay]['sentCountTLS'] += pidDict[pid][relay]['sentCount']
-                relayDict[relay]['isTLS'] = True
-            elif (pidDict[pid][relay]['tlsCount'] > 0):
-                # No message got delivered, still encrypted connection: ignore
-                relayDict[relay]['isTLS'] = True
+            if old_relay['tls_required_but_not_offered']:
+                new_relay['tls_required_but_not_offered'] = True
+            if old_relay['tlsCount']:
+                new_relay['isTLS'] = True
+                if old_relay['sentCount']:
+                    # At least one encrypted connection and one delivered message
+                    new_relay['sentCountTLS'] += old_relay['sentCount']
+                else:
+                    # No message got delivered, still encrypted connection: ignore
+                    pass
             else:
                 # Only unencrypted connections
                 pass
 
+    sentCount = sum(relay['sentCount'] for relay in relayDict.values())
+    tlsCount = sum(relay['sentCountTLS'] for relay in relayDict.values())
+
+    print_dbg("postfixParseLog: Processed lines: %s" % lineCount)
+    print_dbg("postfixParseLog: Delivered messages: %s" % sentCount)
+    print_dbg("postfixParseLog: TLS connections: %s" % tlsCount)
     return relayDict
 
 
