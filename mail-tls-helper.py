@@ -31,7 +31,10 @@ from email.utils import COMMASPACE, formatdate
 name = "mail-tls-helper.py"
 version = "0.8.1"
 
-alertTTL = 30
+ALERT_TTL = datetime.timedelta(days=30)
+
+# date format used for storing timestamps in database
+DB_DATE_FORMAT = '%Y-%m-%d'
 
 LOCALHOST_WHITELIST = {'localhost', '127.0.0.1', '::1'}
 # sadly we currently handle this as a global variable (controlled via "--debug")
@@ -195,26 +198,34 @@ def notlsProcess(domainsTLS, domainsNoTLS, sqliteDB, summary_lines):
             print_dbg("Delete domain %s from sqlite DB" % domain)
             if not DEBUG_MODE_ENABLED:
                 c.execute('''DELETE FROM notlsDomains WHERE domain = ?;''', [domain])
+    now = datetime.datetime.now()
+    now_string = now.strftime(DB_DATE_FORMAT)
     for domain in domainsNoTLS:
         summary_lines.append(" * %s" % (domain))
         if domain in domainDBNoTLS:
-            # send alerts every <alertTTL> days
-            slist = domainDBNoTLS[domain]['alertDate'].split('-')
-            slist_date = datetime.date(int(slist[0]), int(slist[1]), int(slist[2]))
-            minimum_not_outdated_alert_date = datetime.date.today() - datetime.timedelta(alertTTL)
-            if slist_date >= minimum_not_outdated_alert_date:
+            # We have seen this domain before.
+            # Determine if another alert should be sent (every <ALERT_TTLD> days).
+            try:
+                last_alert_date = datetime.datetime.strptime(domainDBNoTLS[domain]['alertDate'],
+                                                             DB_DATE_FORMAT)
+            except ValueError:
+                # handle parse error gracefully
+                print_dbg("Failed to parse date string from database: {}"
+                          .format(domainDBNoTLS[domain]['alertDate']))
+                last_alert_date = None
+            if last_alert_date + ALERT_TTL <= now:
                 continue
             else:
                 print_dbg("Update domain %s in sqlite DB" % domain)
                 if not DEBUG_MODE_ENABLED:
                     c.execute(
                         'UPDATE notlsDomains SET alertCount=?, alertDate=? WHERE domain = ?;',
-                        (domainDBNoTLS[domain]['alertCount'] + 1, datetime.date.today(), domain))
+                        (domainDBNoTLS[domain]['alertCount'] + 1, now_string, domain))
         else:
             print_dbg("Insert domain %s into sqlite DB" % domain)
             if not DEBUG_MODE_ENABLED:
                 c.execute('INSERT INTO notlsDomains (domain, alertCount, alertDate) '
-                          'VALUES (?,?,?);', (domain, 1, datetime.date.today()))
+                          'VALUES (?,?,?);', (domain, 1, now_string))
         if args.send_alerts:
             recipient = 'postmaster@{}'.format(domain)
             summary_lines.append(" [sent alert mail: {}]".format(recipient))
