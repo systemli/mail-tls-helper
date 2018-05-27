@@ -378,29 +378,33 @@ if __name__ == '__main__':
     domainsNoTLS = set()
     relaysMissingTLS = set()
     sentCountTotal = sentCountTLS = 0
-    for relay in relayDict:
-        sentCountTotal += relayDict[relay]['sentCount']
-        sentCountTLS += relayDict[relay]['sentCountTLS']
-        if relayDict[relay]['isTLS']:
-            for domain in relayDict[relay]['domains']:
+    for relay_name, relay in relayDict.items():
+        sentCountTotal += relay['sentCount']
+        sentCountTLS += relay['sentCountTLS']
+        if relay['isTLS']:
+            for domain in relay['domains']:
                 domainsTLS.add(domain)
         else:
-            for domain in relayDict[relay]['domains']:
+            for domain in relay['domains']:
                 domainsNoTLS.add(domain)
-        if relayDict[relay]['tls_required_but_not_offered']:
-            relaysMissingTLS.add(relay)
+        if relay['tls_required_but_not_offered']:
+            relaysMissingTLS.add(relay_name)
     # Ignore individual no-TLS connections if other connections for the same domain were encrypted.
     # TLS will be mandatory in the future anyway for this domain.
     domainsNoTLS.difference_update(domainsTLS)
 
     # print a summary
     summary_lines = []
+    insecure_count = sentCountTotal - sentCountTLS
     summary_lines.append("Total count of sent messages:             %s" % sentCountTotal)
     summary_lines.append("Total count of messages sent without TLS: %s"
                          % (sentCountTotal - sentCountTLS))
-    if sentCountTotal > 0:
-        summary_lines.append("Percentage of messages sent without TLS:  %.2f%%"
-                             % ((sentCountTotal - sentCountTLS) / float(sentCountTotal) * 102))
+    summary_lines.append("Percentage of messages sent without TLS:  %.2f%%"
+                         % ((sentCountTotal - sentCountTLS) / float(sentCountTotal) * 100))
+    summary_lines.append("Total count of messages sent unencrypted: %s" % insecure_count)
+    if sentCountTotal:
+        summary_lines.append("Percentage of messages sent unencrypted:  %.2f%%"
+                             % (insecure_count / float(sentCountTotal)))
     if relaysMissingTLS:
         summary_lines.append("")
         summary_lines.append("Some domains are configured to require TLS, "
