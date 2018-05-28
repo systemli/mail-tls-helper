@@ -431,8 +431,8 @@ if __name__ == '__main__':
                 # Sadly the "TLS required" message only includes the relay name (no mail domains).
                 summary_lines.append(" * MX {} (no related mail domains known)".format(relay))
 
-    # update the SQLite database with noTLS domains
-    if len(domainsNoTLS) > 0:
+    if (len(domainsNoTLS) > 0) and (args.send_summary or args.send_alerts):
+        # update the SQLite database with noTLS domains
         alertable_domains = notlsProcess(domainsTLS, domainsNoTLS, args.sqlite_db)
         summary_lines.append("")
         summary_lines.append("List of domains with no-TLS connections:")
