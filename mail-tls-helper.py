@@ -33,6 +33,8 @@ version = "0.8.1"
 
 alertTTL = 30
 
+LOCALHOST_WHITELIST = {'localhost', '127.0.0.1', '::1'}
+
 
 # Structure for pidDict
 def relayFactory():
@@ -69,7 +71,7 @@ def parse_args():
         utf8_filetype = argparse.FileType('r')
     parser.add_argument('-l', '--mail-log', type=utf8_filetype, dest='mail_logfile',
                         default='/var/log/mail.log.1', help='mail log file')
-    parser.add_argument('-w', '--whitelist', type=str, dest='whitelist_filename',
+    parser.add_argument('-w', '--whitelist', type=utf8_filetype, dest='whitelist',
                         help='optional file containing relay whitelist')
     parser.add_argument('-p', '--postfix-map-file', dest='postfix_map_file', type=str,
                         default='/etc/postfix/tls_policy', help='Postfix TLS policy map file')
@@ -229,14 +231,12 @@ def notlsProcess(domainsTLS, domainsNoTLS, sqliteDB, summary_lines):
 
 
 def readWhitelist(wlfile):
-    whitelist = []
     if wlfile:
-        with open(wlfile, 'r') as f:
-            whitelist = f.readlines()
-    whitelist = [x.strip() for x in whitelist]
-    # always add localhost to whitelist
-    whitelist.extend(['localhost', '127.0.0.1', '::1'])
-    return whitelist
+        parsed_whitelist = set(item.strip() for item in wlfile.readlines())
+        wlfile.close()
+    else:
+        parsed_whitelist = set()
+    return parsed_whitelist
 
 
 def sendMail(sender, to, subject, text, server="/usr/sbin/sendmail"):
@@ -363,7 +363,7 @@ if __name__ == '__main__':
     args = parse_args()
 
     # read in the whitelist
-    whitelist = readWhitelist(args.whitelist_filename)
+    whitelist = readWhitelist(args.whitelist).union(LOCALHOST_WHITELIST)
 
     # fill the relayDict by parsing mail logs
     if args.mode == 'postfix':
