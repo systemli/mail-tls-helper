@@ -34,6 +34,8 @@ version = "0.8.1"
 alertTTL = 30
 
 LOCALHOST_WHITELIST = {'localhost', '127.0.0.1', '::1'}
+# sadly we currently handle this as a global variable (controlled via "--debug")
+DEBUG_MODE_ENABLED = False
 
 
 # Structure for pidDict
@@ -129,7 +131,7 @@ Kind regards,
 
 
 def print_dbg(msg):
-    if args.debug:
+    if DEBUG_MODE_ENABLED:
         print("DEBUG: %s" % msg)
 
 
@@ -161,10 +163,10 @@ def postfixTlsPolicyUpdate(domainsTLS, postfixMapFile, postMap):
             with open(postfixMapFile, 'a') as policyFile:
                 for domain in missing_policy_domains:
                     print_dbg("Add domain '%s' to Postfix TLS policy map" % domain)
-                    if not args.debug:
+                    if not DEBUG_MODE_ENABLED:
                         policyFile.write("%s encrypt\n" % domain)
 
-    if postMap and not args.debug:
+    if postMap and not DEBUG_MODE_ENABLED:
         call(["postmap", postfixMapFile])
 
 
@@ -191,7 +193,7 @@ def notlsProcess(domainsTLS, domainsNoTLS, sqliteDB, summary_lines):
     for domain in domainsTLS:
         if domain in domainDBNoTLS:
             print_dbg("Delete domain %s from sqlite DB" % domain)
-            if not args.debug:
+            if not DEBUG_MODE_ENABLED:
                 c.execute('''DELETE FROM notlsDomains WHERE domain = ?;''', [domain])
     for domain in domainsNoTLS:
         if domain in domainsTLS:
@@ -209,13 +211,13 @@ def notlsProcess(domainsTLS, domainsNoTLS, sqliteDB, summary_lines):
                 continue
             else:
                 print_dbg("Update domain %s in sqlite DB" % domain)
-                if not args.debug:
+                if not DEBUG_MODE_ENABLED:
                     c.execute(
                         'UPDATE notlsDomains SET alertCount=?, alertDate=? WHERE domain = ?;',
                         (domainDBNoTLS[domain]['alertCount'] + 1, datetime.date.today(), domain))
         else:
             print_dbg("Insert domain %s into sqlite DB" % domain)
-            if not args.debug:
+            if not DEBUG_MODE_ENABLED:
                 c.execute('INSERT INTO notlsDomains (domain, alertCount, alertDate) '
                           'VALUES (?,?,?);', (domain, 1, datetime.date.today()))
         if args.send_alerts:
@@ -247,7 +249,7 @@ def sendMail(sender, to, subject, text, server="/usr/sbin/sendmail"):
     msg['Date'] = formatdate(localtime=True)
     msg['Subject'] = subject
     msg.attach(MIMEText(text))
-    if args.debug:
+    if DEBUG_MODE_ENABLED:
         print_dbg("Mail: %s" % msg.as_string())
     else:
         if server == "/usr/sbin/sendmail":
@@ -361,6 +363,7 @@ if __name__ == '__main__':
     # process commandline options
     # TODO: remove the ugly implicit exposure of this variable to the other function
     args = parse_args()
+    DEBUG_MODE_ENABLED = args.debug
 
     # read in the whitelist
     whitelist = readWhitelist(args.whitelist).union(LOCALHOST_WHITELIST)
