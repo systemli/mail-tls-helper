@@ -1,0 +1,155 @@
+#!/bin/sh
+
+: <<=cut
+
+=head1 NAME
+
+mail-tls-helper - monitor the transport security of mails submitted via SMTP
+
+
+=head1 APPLICABLE SYSTEMS
+
+The plugin works with any mail server using
+[mail-tls-helper](https://github.com/systemli/mail-tls-helper) for semi-automatic configuration of
+the TLS submission policy.
+
+
+=head1 USAGE
+
+Copy or (preferably) symlink the plugin file to /etc/munin/plugins/mail-tls-helper.
+Copy or symlink the plugin configuration file 'munin-plugins.conf' below /etc/munin/plugin-conf.d/.
+Restart munin-node in order to let it discover the new plugin.
+Depending on the permissions of your mail log file, it may be necessary to adjust the "group" or
+"user" setting in the configuration file. The default configuration file works for Debian.
+
+
+=head1 CONFIGURATION
+
+Symlink or copy this script to /etc/munin/plugins/mail-tls-helper and restart munin-node.
+
+The plugin probably requires explicit configuration in order to gain the necessary privileges for
+reading the mail log file.
+
+The following settings are evaluated by the plugin:
+
+ [mail-tls-helper]
+ group adm
+ env.mail_tls_helper_path /usr/local/bin/mail-tls-helper.py
+ env.mail_tls_helper_arguments --no-summary --no-postmap
+ env.log_file /var/log/mail.log
+ env.python_bin /usr/bin/python3
+
+The location of 'mail-tls-helper.py' can either be defined by its full path (see
+'mail_tls_helper_path') or left empty. In the latter case, the potential symlink of the plugin is
+resolved and a file named 'mail-tls-helper.py' is assumed to reside just next to the real plugin
+file. In short: just checkout the mail-tls-helper repository and symlink the plugin file to
+/etc/munin/plugins/mail-tls-helper and maybe the plugin config file ('munin-plugin.conf') to
+/etc/munin/plugin-conf.d/. In this case no further configuration should be necessary.
+
+Please note, that the above defaults for "mail_tls_arguments" should work for most systems.
+If you want to change this value, you should not forget the "--no-summary --no-postmap" arguments
+in order to avoid unwanted side-effects.
+
+The "group" setting (or "user") should be set to a reasonable value that allows read access to the
+mail log file.
+
+
+=head1 AUTHOR
+
+ Copyright 2018 Lars Kruse <devel@sumpfralle.de>
+
+
+=head1 LICENSE
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+
+=head1 MAGIC MARKERS
+
+ #%# family=auto
+ #%# capabilities=autoconf
+
+=cut
+
+set -eu
+
+
+MAIL_TLS_HELPER_ARGUMENTS=${mail_tls_helper_arguments:-"--no-summary --no-postmap"}
+MAIL_LOG_FILE=${log_file:-/var/log/mail.log}
+PYTHON_BIN=${python_bin:-/usr/bin/python3}
+
+# determine the path of the script
+if [ -z "${mail_tls_helper_path:-}" ]; then
+    # assume a checkout (the script being next to the plugin file)
+    MAIL_TLS_HELPER=$(dirname "$(realpath "$0")")/mail-tls-helper.py
+else
+    MAIL_TLS_HELPER=$mail_tls_helper_path
+fi
+
+
+do_autoconf() {
+    if [ -e "$MAIL_TLS_HELPER" ]; then
+        if [ -r "$MAIL_LOG_FILE" ]; then
+            echo "yes"
+        else
+            echo "no (cannot read log file: $MAIL_LOG_FILE)"
+        fi
+    else
+        echo "no (non-existing mail-tls-helper script: $MAIL_TLS_HELPER)"
+    fi
+}
+
+
+do_config() {
+    echo "graph_title Mail Transport Security of SMTP submissions"
+    echo "graph_category mail"
+    echo "graph_order count_tls count_tor count_plain"
+    echo "graph_vlabel submitted mails per second"
+    echo "count_tls.label TLS"
+    echo "count_tls.draw AREASTACK"
+    echo "count_tls.type DERIVE"
+    echo "count_tls.min 0"
+    echo "count_tor.label Tor"
+    echo "count_tor.draw AREASTACK"
+    echo "count_tor.type DERIVE"
+    echo "count_tor.min 0"
+    echo "count_plain.label no encryption"
+    echo "count_plain.draw AREASTACK"
+    echo "count_plain.type DERIVE"
+    echo "count_plain.min 0"
+}
+
+
+do_fetch() {
+    local output
+    local key
+    local value
+    # shellcheck disable=SC2086
+    output=$("$PYTHON_BIN" "$MAIL_TLS_HELPER" $MAIL_TLS_HELPER_ARGUMENTS --mail-log "$MAIL_LOG_FILE" --print-statistics)
+    for key in "count_tls" "count_tor" "count_plain"; do
+        value=$(echo "$output" | grep "^$key=" | cut -f 2- -d "=")
+        [ -z "$value" ] && value="U"
+        echo "${key}.value $value"
+    done
+}
+
+
+case "${1:-}" in
+    autoconf)
+        do_autoconf
+        ;;
+    config)
+        do_config
+        if [ "${MUNIN_CAP_DIRTYCONFIG:-0}" = 1 ]; then do_fetch; fi
+        ;;
+    "")
+        do_fetch
+        ;;
+    *)
+        echo >&2 "Unknown action: $1"
+        exit 1
+        ;;
+esac
