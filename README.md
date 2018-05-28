@@ -1,5 +1,7 @@
 # mail-tls-helper
 
+[![Build Status](https://travis-ci.org/systemli/mail-tls-helper.svg?branch=master)](https://travis-ci.org/systemli/mail-tls-helper)
+
 Postfix helper script that does the following:
 
  * make TLS mandatory for outgoing mail wherever possible and
