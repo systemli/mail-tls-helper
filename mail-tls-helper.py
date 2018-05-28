@@ -62,7 +62,12 @@ def parse_args():
                         help="run in debugging mode, don't do anything")
     parser.add_argument('-m', '--mode', choices=('postfix', ), default='postfix',
                         help='mode (currently only "postfix")')
-    parser.add_argument('-l', '--mail-log', type=argparse.FileType('r'), dest='mail_logfile',
+    try:
+        utf8_filetype = argparse.FileType('r', encoding='utf8')
+    except TypeError:
+        # fallback for Python2
+        utf8_filetype = argparse.FileType('r')
+    parser.add_argument('-l', '--mail-log', type=utf8_filetype, dest='mail_logfile',
                         default='/var/log/mail.log.1', help='mail log file')
     parser.add_argument('-w', '--whitelist', type=str, dest='whitelist_filename',
                         help='optional file containing relay whitelist')
