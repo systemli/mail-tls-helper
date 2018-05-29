@@ -47,8 +47,10 @@ def relayFactory():
         'domains': set(),
         'sentCount': 0,
         'sentCountTLS': 0,
+        'sentCountTor': 0,
         'tlsCount': 0,
         'isTLS': False,
+        'isTor': False,
         'tls_required_but_not_offered': False,
     }
 
@@ -292,11 +294,8 @@ def postfixParseLog(logfile, whitelist):
     # * What we do:
     #   * Pair PID and relay, write stats for that pair into pidDict[relay]
 
-    relayDict = defaultdict(relayFactory)
     pidDict = defaultdict(pidFactory)
-    lineCount = sentCount = tlsCount = 0
-    for line in logfile:
-        lineCount += 1
+    for lineCount, line in enumerate(logfile, 1):
         m = regex_tls_missing.search(line)
         if m:
             relay = m.group('relay').lower()
@@ -305,6 +304,7 @@ def postfixParseLog(logfile, whitelist):
         # search for SMTP client connections
         m = regex_smtp.search(line)
         if m:
+            # a plain or a TOR connection
             relay = m.group('relay').lower()
             if relay in whitelist:
                 print_dbg("Skipping relay from whitelist: %s (smtp)" % relay)
@@ -312,8 +312,8 @@ def postfixParseLog(logfile, whitelist):
             domain = m.group('domain').lower()
             pidDict[m.group('pid')][relay]['domains'].add(domain)
             if m.group('status') == 'sent':
+                # The message was successfully delivered (not deferred, ...).
                 pidDict[m.group('pid')][relay]['sentCount'] += 1
-                sentCount += 1
             continue
         # search for TLS connections
         m = regex_tls.search(line)
@@ -321,36 +321,46 @@ def postfixParseLog(logfile, whitelist):
             relay = m.group('relay').lower()
             if relay in whitelist:
                 print_dbg("Skipping relay from whitelist: %s (tls)" % relay)
-                continue
-            tlsCount += 1
-            pidDict[m.group('pid')][relay]['tlsCount'] += 1
-
-    print_dbg("postfixParseLog: Processed lines: %s" % lineCount)
-    print_dbg("postfixParseLog: Delivered messages: %s" % sentCount)
-    print_dbg("postfixParseLog: TLS connections: %s" % tlsCount)
+            else:
+                pidDict[m.group('pid')][relay]['tlsCount'] += 1
 
     # Transform pidDict into relayDict
+    relayDict = defaultdict(relayFactory)
     for pid in pidDict:
         # optional PID output: print_dbg_pid(pid, pidDict[pid])
-        for relay in pidDict[pid]:
-            for x in pidDict[pid][relay]['domains']:
-                relayDict[relay]['domains'].add(x)
-            relayDict[relay]['sentCount'] += pidDict[pid][relay]['sentCount']
+        for relay_name, old_relay in pidDict[pid].items():
+            new_relay = relayDict[relay_name]
+            new_relay['domains'].update(old_relay['domains'])
+            new_relay['sentCount'] += old_relay['sentCount']
             # "tls_required_but_not_offered" is set, if such a message was encountered for at least
             # one relay of the domain.
-            if pidDict[pid][relay]['tls_required_but_not_offered']:
-                relayDict[relay]['tls_required_but_not_offered'] = True
-            if (pidDict[pid][relay]['tlsCount'] > 0) and (pidDict[pid][relay]['sentCount'] > 0):
-                # At least one encrypted connection and one delivered message
-                relayDict[relay]['sentCountTLS'] += pidDict[pid][relay]['sentCount']
-                relayDict[relay]['isTLS'] = True
-            elif (pidDict[pid][relay]['tlsCount'] > 0):
-                # No message got delivered, still encrypted connection: ignore
-                relayDict[relay]['isTLS'] = True
+            if old_relay['tls_required_but_not_offered']:
+                new_relay['tls_required_but_not_offered'] = True
+            if relay_name.endswith('.onion'):
+                # TOR peers are trusted by design due to their private onion key
+                print_dbg("Treating relay via TOR as trusted: %s (smtp)" % relay_name)
+                new_relay['sentCountTor'] += old_relay['sentCount']
+                new_relay['isTor'] = True
+            elif old_relay['tlsCount']:
+                new_relay['isTLS'] = True
+                if old_relay['sentCount']:
+                    # At least one encrypted connection and one delivered message
+                    new_relay['sentCountTLS'] += old_relay['sentCount']
+                else:
+                    # No message got delivered, still encrypted connection: ignore
+                    pass
             else:
                 # Only unencrypted connections
                 pass
 
+    sentCount = sum(relay['sentCount'] for relay in relayDict.values())
+    tlsCount = sum(relay['sentCountTLS'] for relay in relayDict.values())
+    torCount = sum(relay['sentCountTor'] for relay in relayDict.values())
+
+    print_dbg("postfixParseLog: Processed lines: %s" % lineCount)
+    print_dbg("postfixParseLog: Delivered messages: %s" % sentCount)
+    print_dbg("postfixParseLog: TLS connections: %s" % tlsCount)
+    print_dbg("postfixParseLog: TOR connections: %s" % torCount)
     return relayDict
 
 
@@ -378,30 +388,36 @@ if __name__ == '__main__':
     domainsTLS = set()
     domainsNoTLS = set()
     relaysMissingTLS = set()
-    sentCountTotal = sentCountTLS = 0
-    for relay in relayDict:
-        sentCountTotal += relayDict[relay]['sentCount']
-        sentCountTLS += relayDict[relay]['sentCountTLS']
-        if relayDict[relay]['isTLS']:
-            for domain in relayDict[relay]['domains']:
+    sentCountTotal = sentCountTLS = sentCountTor = 0
+    for relay_name, relay in relayDict.items():
+        sentCountTotal += relay['sentCount']
+        sentCountTLS += relay['sentCountTLS']
+        sentCountTor += relay['sentCountTor']
+        if relay['isTLS']:
+            for domain in relay['domains']:
                 domainsTLS.add(domain)
+        elif relay['isTor']:
+            # nothing to be done
+            pass
         else:
-            for domain in relayDict[relay]['domains']:
+            for domain in relay['domains']:
                 domainsNoTLS.add(domain)
-        if relayDict[relay]['tls_required_but_not_offered']:
-            relaysMissingTLS.add(relay)
+        if relay['tls_required_but_not_offered']:
+            relaysMissingTLS.add(relay_name)
     # Ignore individual no-TLS connections if other connections for the same domain were encrypted.
     # TLS will be mandatory in the future anyway for this domain.
     domainsNoTLS.difference_update(domainsTLS)
 
     # print a summary
     summary_lines = []
+    insecure_count = sentCountTotal - sentCountTLS - sentCountTor
     summary_lines.append("Total count of sent messages:             %s" % sentCountTotal)
-    summary_lines.append("Total count of messages sent without TLS: %s"
-                         % (sentCountTotal - sentCountTLS))
-    if sentCountTotal > 0:
-        summary_lines.append("Percentage of messages sent without TLS:  %.2f%%"
-                             % ((sentCountTotal - sentCountTLS) / float(sentCountTotal) * 102))
+    summary_lines.append("Total count of messages sent with TLS:    %s" % sentCountTLS)
+    summary_lines.append("Total count of messages sent with Tor:    %s" % sentCountTor)
+    summary_lines.append("Total count of messages sent unencrypted: %s" % insecure_count)
+    if sentCountTotal:
+        summary_lines.append("Percentage of messages sent unencrypted:  %.2f%%"
+                             % (insecure_count / float(sentCountTotal)))
     if relaysMissingTLS:
         summary_lines.append("")
         summary_lines.append("Some domains are configured to require TLS, "
