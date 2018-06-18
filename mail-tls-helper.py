@@ -424,7 +424,7 @@ if __name__ == '__main__':
         print("count_plain={:d}".format(insecure_count))
     if sentCountTotal:
         summary_lines.append("Percentage of messages sent unencrypted:  %.2f%%"
-                             % (insecure_count / float(sentCountTotal)))
+                             % (100 * insecure_count / float(sentCountTotal)))
     if relaysMissingTLS:
         summary_lines.append("")
         summary_lines.append("Some domains are configured to require TLS, "
