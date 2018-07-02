@@ -46,6 +46,11 @@ request* on Github.
 }
 ```
 
+# Monitoring
+
+* [munin](https://munin-monitoring.org): see the documentation header of `munin-plugin`
+
+
 ## Changelog
 
 * 2017-11-11: version 0.8.1

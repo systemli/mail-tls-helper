@@ -88,6 +88,8 @@ def parse_args():
     parser.add_argument('-a', '--alerts', dest='send_alerts', action='store_true',
                         help=('send out alert mails to the "postmaster" addresses of external '
                               'mail domains lacking TLS support'))
+    parser.add_argument('--print-statistics', action='store_true',
+                        help='Print statistics of recent transport security usage')
     parser.add_argument('-S', '--no-summary', dest='send_summary', action='store_false',
                         help='do not send out summary mail')
     parser.add_argument('-P', '--no-postfix-map', dest='use_postfix_map', action='store_false',
@@ -415,6 +417,11 @@ if __name__ == '__main__':
     summary_lines.append("Total count of messages sent with TLS:    %s" % sentCountTLS)
     summary_lines.append("Total count of messages sent with Tor:    %s" % sentCountTor)
     summary_lines.append("Total count of messages sent unencrypted: %s" % insecure_count)
+    if args.print_statistics:
+        print("count_total={:d}".format(sentCountTotal))
+        print("count_tls={:d}".format(sentCountTLS))
+        print("count_tor={:d}".format(sentCountTor))
+        print("count_plain={:d}".format(insecure_count))
     if sentCountTotal:
         summary_lines.append("Percentage of messages sent unencrypted:  %.2f%%"
                              % (100 * insecure_count / float(sentCountTotal)))
@@ -431,8 +438,8 @@ if __name__ == '__main__':
                 # Sadly the "TLS required" message only includes the relay name (no mail domains).
                 summary_lines.append(" * MX {} (no related mail domains known)".format(relay))
 
-    # update the SQLite database with noTLS domains
-    if len(domainsNoTLS) > 0:
+    if (len(domainsNoTLS) > 0) and (args.send_summary or args.send_alerts):
+        # update the SQLite database with noTLS domains
         alertable_domains = notlsProcess(domainsTLS, domainsNoTLS, args.sqlite_db)
         summary_lines.append("")
         summary_lines.append("List of domains with no-TLS connections:")

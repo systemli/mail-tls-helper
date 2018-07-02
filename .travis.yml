@@ -4,10 +4,16 @@ addons:
     packages:
       - python-flake8
       - python3-flake8
+      - shellcheck
 script:
   # the travis environment is a bit outdated - thus we need to run flake8 manually
   # (instead of "make lint")
-  - which flake8
+  # TODO: use "make lint" as soon as something newer than "trusty" is supported by travis
+  # See https://docs.travis-ci.com/user/reference/overview/
+  # Keep the three commands below in sync with the "lint" target in the Makefile.
+  - flake8 --version
   - python /usr/bin/flake8 --max-line-length=99 mail-tls-helper.py tests
   - python3 /usr/bin/flake8 --max-line-length=99 --ignore=N802,N803,N806 mail-tls-helper.py tests
+  - shellcheck -s dash munin-plugin
+  # The "test" target works as expected.
   - make test
