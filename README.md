@@ -53,6 +53,13 @@ request* on Github.
 
 ## Changelog
 
+* 2018-07-18: version 0.9.0
+  * added monitoring of mails sent over Tor
+  * added reporting of blocked domains, because of missing TLS
+  * added munin plugin
+  * added tests
+  * improved file handling
+  * improved Python 3 compatibility
 * 2017-11-11: version 0.8.1
   * fix version number and update todo list in the script
 * 2017-11-11: version 0.8.0
