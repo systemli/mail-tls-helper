@@ -85,6 +85,10 @@ def parse_args():
     parser.add_argument('-s', '--sqlite-db', dest='sqlite_db',
                         default='/var/lib/mail-tls-helper/notls.sqlite',
                         help='SQLite DB file for internal state storage (created if missing)')
+    parser.add_argument('-t', '--database-type', dest='postfix_database_type',
+                        default='hash',
+                        help=('Postfix lookup table type. '
+                              'See http://www.postfix.org/DATABASE_README.html'))
     parser.add_argument('-a', '--alerts', dest='send_alerts', action='store_true',
                         help=('send out alert mails to the "postmaster" addresses of external '
                               'mail domains lacking TLS support'))
@@ -157,7 +161,7 @@ def print_dbg_relay(relay, dictx):
 
 
 # Postfix TLS policy table functions
-def postfixTlsPolicyUpdate(domainsTLS, postfixMapFile, postMap):
+def postfixTlsPolicyUpdate(domainsTLS, postfixMapFile, postfixDatabaseType, postMap):
     if os.path.isfile(postfixMapFile):
         existing_policy_domains = set()
         with open(postfixMapFile, 'r') as in_file:
@@ -174,7 +178,8 @@ def postfixTlsPolicyUpdate(domainsTLS, postfixMapFile, postMap):
                         policyFile.write("%s encrypt\n" % domain)
 
     if postMap and not DEBUG_MODE_ENABLED:
-        call(["postmap", postfixMapFile])
+        target="{}:{}".format(postfixDatabaseType, postfixMapFile)
+        call(["postmap", target])
 
 
 def notlsProcess(domainsTLS, domainsNoTLS, sqliteDB):
@@ -456,7 +461,7 @@ if __name__ == '__main__':
 
     # update the TLS policy map
     if (args.mode == 'postfix') and args.use_postfix_map and (len(domainsTLS) > 0):
-        postfixTlsPolicyUpdate(domainsTLS, args.postfix_map_file, args.run_postmap)
+        postfixTlsPolicyUpdate(domainsTLS, args.postfix_map_file, args.postfix_database_type, args.run_postmap)
 
     if (len(domainsNoTLS) > 0) and args.send_summary:
         summary_text = args.summary_start + "\n\n" + "\n".join(summary_lines)
