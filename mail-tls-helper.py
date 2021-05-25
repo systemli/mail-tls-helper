@@ -30,7 +30,7 @@ ALERT_TTL = datetime.timedelta(days=30)
 # date format used for storing timestamps in database
 DB_DATE_FORMAT = '%Y-%m-%d'
 
-LOCALHOST_WHITELIST = {'localhost', '127.0.0.1', '::1'}
+LOCALHOST_ALLOWLIST = {'localhost', '127.0.0.1', '::1'}
 # sadly we currently handle this as a global variable (controlled via "--debug")
 DEBUG_MODE_ENABLED = False
 
@@ -72,8 +72,8 @@ def parse_args():
         utf8_filetype = argparse.FileType('r')
     parser.add_argument('-l', '--mail-log', type=utf8_filetype, dest='mail_logfile',
                         default='/var/log/mail.log.1', help='mail log file')
-    parser.add_argument('-w', '--whitelist', type=utf8_filetype, dest='whitelist',
-                        help='optional file containing relay whitelist')
+    parser.add_argument('-w', '--allowlist', type=utf8_filetype, dest='allowlist',
+                        help='optional file containing relay allowlist')
     parser.add_argument('-p', '--postfix-map-file', dest='postfix_map_file', type=str,
                         default='/etc/postfix/tls_policy', help='Postfix TLS policy map file')
     parser.add_argument('-s', '--sqlite-db', dest='sqlite_db',
@@ -232,13 +232,13 @@ def notlsProcess(domainsTLS, domainsNoTLS, sqliteDB):
     return alert_candidate_domains
 
 
-def readWhitelist(wlfile):
-    if wlfile:
-        parsed_whitelist = set(item.strip() for item in wlfile.readlines())
+def readAllowlist(alfile):
+    if alfile:
+        parsed_allowlist = set(item.strip() for item in alfile.readlines())
         wlfile.close()
     else:
-        parsed_whitelist = set()
-    return parsed_whitelist
+        parsed_allowlist = set()
+    return parsed_allowlist
 
 
 def sendMail(sender, to, subject, text, server="/usr/sbin/sendmail"):
@@ -267,7 +267,7 @@ def sendMail(sender, to, subject, text, server="/usr/sbin/sendmail"):
             smtp.close()
 
 
-def postfixParseLog(logfile, whitelist):
+def postfixParseLog(logfile, allowlist):
     # Postfix regexes
     regex_smtp = re.compile(r" postfix/smtp\[(?P<pid>[0-9]+)\]: "
                             r"(?P<msgid>[0-9A-F]+): to=<[^@]+@(?P<domain>[^, ]+)>, .*"
@@ -302,8 +302,8 @@ def postfixParseLog(logfile, whitelist):
         if m:
             # a plain or a TOR connection
             relay = m.group('relay').lower()
-            if relay in whitelist:
-                print_dbg("Skipping relay from whitelist: %s (smtp)" % relay)
+            if relay in allowlist:
+                print_dbg("Skipping relay from allowlist: %s (smtp)" % relay)
                 continue
             domain = m.group('domain').lower()
             pidDict[m.group('pid')][relay]['domains'].add(domain)
@@ -315,8 +315,8 @@ def postfixParseLog(logfile, whitelist):
         m = regex_tls.search(line)
         if m:
             relay = m.group('relay').lower()
-            if relay in whitelist:
-                print_dbg("Skipping relay from whitelist: %s (tls)" % relay)
+            if relay in allowlist:
+                print_dbg("Skipping relay from allowlist: %s (tls)" % relay)
             else:
                 pidDict[m.group('pid')][relay]['tlsCount'] += 1
 
@@ -373,12 +373,12 @@ if __name__ == '__main__':
     args = parse_args()
     DEBUG_MODE_ENABLED = args.debug
 
-    # read in the whitelist
-    whitelist = readWhitelist(args.whitelist).union(LOCALHOST_WHITELIST)
+    # read in the allowlist
+    allowlist = readAllowlist(args.allowlist).union(LOCALHOST_ALLOWLIST)
 
     # fill the relayDict by parsing mail logs
     if args.mode == 'postfix':
-        relayDict = postfixParseLog(args.mail_logfile, whitelist)
+        relayDict = postfixParseLog(args.mail_logfile, allowlist)
 
     # fill domainsTLS and domainsNoTLS from relayDict
     domainsTLS = set()
