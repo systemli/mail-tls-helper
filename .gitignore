@@ -1,7 +1,7 @@
 mail.log*
 notls.sqlite
 tls_policy
-whitelist
+allowlist
 
 *.pyc
 *.sw[op]
