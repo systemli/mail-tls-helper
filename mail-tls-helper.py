@@ -240,7 +240,7 @@ def notlsProcess(domainsTLS, domainsNoTLS, sqliteDB):
 def readAllowlist(alfile):
     if alfile:
         parsed_allowlist = set(item.strip() for item in alfile.readlines())
-        wlfile.close()
+        alfile.close()
     else:
         parsed_allowlist = set()
     return parsed_allowlist
