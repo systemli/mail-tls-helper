@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
 # Postfix helper script that does the following:
 #  * make TLS mandatory for outgoing mail wherever possible and

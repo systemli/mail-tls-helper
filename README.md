@@ -15,7 +15,7 @@ request* on Github.
  * Set *Postfix SMTP client logging* (configuration option
    [smtp_tls_loglevel](http://www.postfix.org/postconf.5.html#smtp_tls_loglevel))
    to '1' or higher.
- * Ensure that Python (2.7) is installed.
+ * Ensure that Python3 is installed.
  * Copy the script to your mail system (e.g. to ```/usr/local/bin/```) and make
    executable.
  * Make sure that the script can write to *Postfix TLS policy map* and *notls
