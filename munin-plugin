@@ -35,7 +35,7 @@ The following settings are evaluated by the plugin:
  [mail-tls-helper]
  group adm
  env.mail_tls_helper_path /usr/local/bin/mail-tls-helper.py
- env.mail_tls_helper_arguments --no-summary --no-postmap
+ env.mail_tls_helper_arguments --no-summary --no-postmap --no-postfix-map
  env.log_file /var/log/mail.log
  env.python_bin /usr/bin/python3
 
@@ -47,8 +47,8 @@ file. In short: just checkout the mail-tls-helper repository and symlink the plu
 /etc/munin/plugin-conf.d/. In this case no further configuration should be necessary.
 
 Please note, that the above defaults for "mail_tls_arguments" should work for most systems.
-If you want to change this value, you should not forget the "--no-summary --no-postmap" arguments
-in order to avoid unwanted side-effects.
+If you want to change this value, you should not forget the "--no-summary --no-postmap
+--no-postfix-map" arguments in order to avoid unwanted side-effects.
 
 The "group" setting (or "user") should be set to a reasonable value that allows read access to the
 mail log file.
@@ -77,7 +77,7 @@ the Free Software Foundation, either version 3 of the License, or
 set -eu
 
 
-MAIL_TLS_HELPER_ARGUMENTS=${mail_tls_helper_arguments:-"--no-summary --no-postmap"}
+MAIL_TLS_HELPER_ARGUMENTS=${mail_tls_helper_arguments:-"--no-summary --no-postmap --no-postfix-map"}
 MAIL_LOG_FILE=${log_file:-/var/log/mail.log}
 PYTHON_BIN=${python_bin:-/usr/bin/python3}
 
